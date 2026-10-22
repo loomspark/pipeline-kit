@@ -35,7 +35,7 @@ risk:
       reason: The config contract every project depends on
     - tier: 2
       paths: ["src/risk.ts", "src/hard-rules.ts", "src/presets.ts", "src/glob.ts", "src/diff.ts", "src/config.ts", "src/agent.ts", "src/github.ts", "src/cli.ts"]
-      reason: Enforcement and identity logic; a bug here weakens checks for every project
+      reason: Enforcement and identity logic, where a bug weakens checks for every project
     - tier: 2
       paths: [".pipeline/**", "CLAUDE.md", "package.json", "package-lock.json"]
       reason: Kit config, agent rules or dependencies
