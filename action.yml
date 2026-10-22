@@ -1,0 +1,61 @@
+name: Loomspark pipeline kit
+description: Runs a pipeline-kit command (validate, plan, hard-rules, risk) against the calling project's checkout.
+inputs:
+  command:
+    description: validate | plan | hard-rules | risk
+    required: true
+  config:
+    description: Path to the project config.
+    default: .pipeline/config.yml
+  base:
+    description: Diff base commit (hard-rules, risk).
+    default: ""
+  head:
+    description: Diff head commit (hard-rules, risk).
+    default: ""
+outputs:
+  node-version-file:
+    description: plan only
+    value: ${{ steps.run.outputs.node-version-file }}
+  install:
+    description: plan only
+    value: ${{ steps.run.outputs.install }}
+  cache:
+    description: plan only; "npm" when the project has package-lock.json
+    value: ${{ steps.run.outputs.cache }}
+  commands:
+    description: plan only; JSON array of {name, run}
+    value: ${{ steps.run.outputs.commands }}
+  tier:
+    description: risk only; 0, 1 or 2
+    value: ${{ steps.run.outputs.tier }}
+  approval:
+    description: risk only; not-needed | approved | needed | stale
+    value: ${{ steps.run.outputs.approval }}
+runs:
+  using: composite
+  steps:
+    # The kit runs on its own Node (type stripping needs >= 22.18). A project's own Node
+    # is set up after this action by the workflow, so the project's commands use theirs.
+    - uses: actions/setup-node@v5
+      with:
+        node-version: 24
+    - name: Install kit
+      shell: bash
+      run: npm ci --omit=dev --no-audit --no-fund --prefix "$GITHUB_ACTION_PATH" > /dev/null
+    - id: run
+      name: pipeline-kit ${{ inputs.command }}
+      shell: bash
+      env:
+        KIT_COMMAND: ${{ inputs.command }}
+        KIT_CONFIG: ${{ inputs.config }}
+        KIT_BASE: ${{ inputs.base }}
+        KIT_HEAD: ${{ inputs.head }}
+        KIT_EVENT_ACTION: ${{ github.event.action }}
+        KIT_EVENT_LABEL: ${{ github.event.label.name }}
+        KIT_PR_LABELS: ${{ toJSON(github.event.pull_request.labels.*.name) }}
+      run: |
+        args=("$KIT_COMMAND" --config "$KIT_CONFIG")
+        [ -n "$KIT_BASE" ] && args+=(--base "$KIT_BASE")
+        [ -n "$KIT_HEAD" ] && args+=(--head "$KIT_HEAD")
+        node --disable-warning=ExperimentalWarning "$GITHUB_ACTION_PATH/src/cli.ts" "${args[@]}"

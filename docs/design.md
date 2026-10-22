@@ -118,7 +118,7 @@ Outputs: `tier` (0 to 2) and `approval` (`not-needed`, `approved`, `needed`, `st
 | Milestone | Plan phase | Contents | Status |
 |---|---|---|---|
 | 0 | Kit | Repo, CLAUDE.md, this doc, ADR 0001, config schema | Done 22 Oct 2026 |
-| 1 | 0 and 2 | Reusable CI (`verify`), changed-path risk check with label approval, hard rules with `secrets` preset; Ward Intel wired on a branch | In progress |
+| 1 | 0 and 2 | Reusable CI (`verify`), changed-path risk check with label approval, hard rules with `secrets` preset; Ward Intel wired on a branch | Done 22 Oct 2026 |
 | 2 | 2 | **[Proposed]** Escalation channel (one place the owner sees approval requests), tier labels on PRs, a bot identity for agents (K3), Dependabot patch-bump exception for lockfiles (K6) | |
 | 3 | 1 | **[Proposed]** Preview URL resolver (`previews`), Playwright conventions and helpers, fixed journey suite run against previews; secret exposure per stage | |
 | 4 | 1 | **[Proposed]** AI exploratory tester (layer 2) through the model gateway; outputs new Playwright tests | |

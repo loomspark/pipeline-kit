@@ -1,0 +1,99 @@
+# Reusable CI for Loomspark projects (milestone 1). A project calls it from its own
+# workflow; see docs/design.md#adopting-the-kit. Three checks:
+#   verify      the project's own commands (typecheck, test, build...) from its config
+#   hard-rules  things that must never land, on every PR and every push to the default branch
+#   risk        changed-path tier for PRs; tier >= approval.fromTier needs the approval label
+# No secrets are passed or needed. Nothing here assumes a host or an AI vendor.
+name: pipeline-kit CI
+
+on:
+  workflow_call:
+    inputs:
+      config:
+        description: Path to the project config.
+        type: string
+        default: .pipeline/config.yml
+    outputs:
+      risk-tier:
+        description: The PR's risk tier (empty for pushes).
+        value: ${{ jobs.risk.outputs.tier }}
+
+permissions:
+  contents: read
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          persist-credentials: false
+      - id: plan
+        uses: loomspark/pipeline-kit@v0
+        with:
+          command: plan
+          config: ${{ inputs.config }}
+      - uses: actions/setup-node@v5
+        with:
+          node-version-file: ${{ steps.plan.outputs.node-version-file }}
+          cache: ${{ steps.plan.outputs.cache }}
+      - name: Install
+        env:
+          INSTALL: ${{ steps.plan.outputs.install }}
+        run: bash -c "$INSTALL"
+      - name: Run verify commands
+        env:
+          COMMANDS: ${{ steps.plan.outputs.commands }}
+        run: |
+          failed=()
+          echo "| Command | Result |" >> "$GITHUB_STEP_SUMMARY"
+          echo "|---|---|" >> "$GITHUB_STEP_SUMMARY"
+          count=$(jq length <<< "$COMMANDS")
+          for ((i = 0; i < count; i++)); do
+            name=$(jq -r ".[$i].name" <<< "$COMMANDS")
+            run=$(jq -r ".[$i].run" <<< "$COMMANDS")
+            echo "::group::$name"
+            if bash -c "$run"; then result=passed; else result=failed; failed+=("$name"); fi
+            echo "::endgroup::"
+            echo "$name: $result"
+            echo "| \`$name\` | $result |" >> "$GITHUB_STEP_SUMMARY"
+          done
+          if [ ${#failed[@]} -gt 0 ]; then
+            echo "::error title=verify::Failed: ${failed[*]}"
+            exit 1
+          fi
+
+  hard-rules:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+      - uses: loomspark/pipeline-kit@v0
+        with:
+          command: hard-rules
+          config: ${{ inputs.config }}
+          base: ${{ github.event_name == 'pull_request' && github.event.pull_request.base.sha || github.event.before }}
+          head: ${{ github.event_name == 'pull_request' && github.event.pull_request.head.sha || github.sha }}
+
+  risk:
+    if: github.event_name == 'pull_request'
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    outputs:
+      tier: ${{ steps.risk.outputs.tier }}
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+      - id: risk
+        uses: loomspark/pipeline-kit@v0
+        with:
+          command: risk
+          config: ${{ inputs.config }}
+          base: ${{ github.event.pull_request.base.sha }}
+          head: ${{ github.event.pull_request.head.sha }}
