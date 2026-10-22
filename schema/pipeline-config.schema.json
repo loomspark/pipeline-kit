@@ -1,0 +1,219 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://github.com/loomspark/pipeline-kit/schema/pipeline-config.schema.json",
+  "title": "Pipeline kit project config",
+  "description": "Per-project config for the Loomspark pipeline kit, kept at .pipeline/config.yml in the project repo. It names secrets but never holds their values. See docs/design.md#project-config.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["version", "project", "verify", "risk"],
+  "properties": {
+    "$schema": { "type": "string" },
+    "version": {
+      "description": "Config format version. Bumped only for breaking changes (docs/design.md#versioning).",
+      "const": 1
+    },
+    "project": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["name"],
+      "properties": {
+        "name": { "type": "string", "pattern": "^[a-z0-9][a-z0-9-]*$" },
+        "description": { "type": "string" }
+      }
+    },
+    "verify": {
+      "description": "Commands every change must pass (milestone 1). Run in order in one job, after install; all run even if one fails.",
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["commands"],
+      "properties": {
+        "nodeVersionFile": {
+          "description": "File passed to actions/setup-node to pick the project's Node version.",
+          "type": "string",
+          "default": ".nvmrc"
+        },
+        "install": { "type": "string", "default": "npm ci" },
+        "commands": {
+          "type": "array",
+          "minItems": 1,
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["name", "run"],
+            "properties": {
+              "name": { "type": "string", "pattern": "^[a-z0-9][a-z0-9-]*$" },
+              "run": { "type": "string", "minLength": 1 }
+            }
+          }
+        }
+      }
+    },
+    "risk": {
+      "description": "Changed-path risk rules (milestone 1). A file's tier is the highest tier of any rule matching it, or defaultTier if none match; a change's tier is the highest of its files. Rules can only raise a file's tier above another rule's, never lower it.",
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["rules"],
+      "properties": {
+        "enforce": {
+          "description": "true: the risk check fails for changes at or above approval.fromTier until approved. false: report only.",
+          "type": "boolean",
+          "default": true
+        },
+        "defaultTier": { "$ref": "#/definitions/tier", "default": 1 },
+        "approval": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "label": {
+              "description": "PR label an approver applies to approve a risky change. Approval counts only on the event that applies it: any later push or label change needs it re-applied.",
+              "type": "string",
+              "default": "risk:approved"
+            },
+            "fromTier": { "$ref": "#/definitions/tier", "default": 2 }
+          }
+        },
+        "rules": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["tier", "paths", "reason"],
+            "properties": {
+              "tier": { "$ref": "#/definitions/tier" },
+              "paths": { "$ref": "#/definitions/globs" },
+              "reason": { "type": "string", "minLength": 1 },
+              "ref": { "$ref": "#/definitions/ref" }
+            }
+          }
+        }
+      }
+    },
+    "hardRules": {
+      "description": "Rules checked on every diff (milestone 1). Only added or modified files and added lines are checked. Findings report rule, file and line only, never the matched text.",
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "presets": {
+          "description": "Kit-provided rule sets to switch on.",
+          "type": "array",
+          "uniqueItems": true,
+          "items": { "enum": ["secrets"] }
+        },
+        "rules": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["id", "description", "paths"],
+            "properties": {
+              "id": { "type": "string", "pattern": "^[a-z0-9][a-z0-9-]*$" },
+              "description": { "type": "string", "minLength": 1 },
+              "ref": { "$ref": "#/definitions/ref" },
+              "paths": { "$ref": "#/definitions/globs" },
+              "exceptPaths": { "$ref": "#/definitions/globs" },
+              "forbidFile": {
+                "description": "Any added or modified file matching paths fails the rule.",
+                "type": "boolean"
+              },
+              "forbidPatterns": {
+                "description": "JavaScript regular expressions; an added line in a matching file that matches any of them fails the rule.",
+                "type": "array",
+                "minItems": 1,
+                "items": { "type": "string", "minLength": 1 }
+              },
+              "ignoreCase": { "type": "boolean", "default": false }
+            },
+            "anyOf": [
+              { "required": ["forbidFile"], "properties": { "forbidFile": { "const": true } } },
+              { "required": ["forbidPatterns"] }
+            ]
+          }
+        }
+      }
+    },
+    "previews": {
+      "description": "[Reserved, Phase 1] How to find a PR's preview URL. The kit only assumes a URL exists, never a host.",
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["source"],
+      "properties": {
+        "source": {
+          "description": "deployment: read the URL from the GitHub deployment status the host posts. command: run a command that prints the URL. none: no previews.",
+          "enum": ["deployment", "command", "none"]
+        },
+        "environment": { "description": "Deployment environment name, for source: deployment.", "type": "string" },
+        "command": { "description": "For source: command.", "type": "string" }
+      }
+    },
+    "journeys": {
+      "description": "[Reserved, Phase 1] Key journeys for the fixed end-to-end suite.",
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["id", "description"],
+        "properties": {
+          "id": { "type": "string", "pattern": "^[a-z0-9][a-z0-9-]*$" },
+          "description": { "type": "string" },
+          "spec": { "description": "Test file implementing the journey.", "type": "string" }
+        }
+      }
+    },
+    "testData": {
+      "description": "[Reserved, Phase 1] Commands that reset and seed synthetic test data. Test data is always fictional.",
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "reset": { "type": "string" },
+        "seed": { "type": "string" }
+      }
+    },
+    "models": {
+      "description": "[Reserved, Phase 3] Model choice per agent role, through an OpenAI-compatible gateway. Model ids and URLs are config; keys are secrets.",
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "gatewayUrl": { "type": "string", "pattern": "^https?://" },
+        "roles": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "triage": { "type": "string" },
+            "build": { "type": "string" },
+            "review": { "type": "string" },
+            "test": { "type": "string" }
+          }
+        }
+      }
+    },
+    "secrets": {
+      "description": "Names (never values) of the secrets each pipeline stage may use, keyed by stage. Values live in the project's GitHub Actions secrets or host secret store.",
+      "type": "object",
+      "additionalProperties": false,
+      "patternProperties": {
+        "^[a-z][a-z0-9-]*$": {
+          "type": "array",
+          "uniqueItems": true,
+          "items": { "type": "string", "pattern": "^[A-Z][A-Z0-9_]*$" }
+        }
+      }
+    }
+  },
+  "definitions": {
+    "tier": {
+      "description": "0 auto-ship, 1 auto-build, 2 escalate (docs/design.md#risk-tiers).",
+      "type": "integer",
+      "enum": [0, 1, 2]
+    },
+    "globs": {
+      "description": "Repo-root-anchored globs: ** any depth (dotfiles included), * within one path segment, ? one character, {a,b} alternatives.",
+      "type": "array",
+      "minItems": 1,
+      "items": { "type": "string", "minLength": 1 }
+    },
+    "ref": {
+      "description": "Requirement or ADR id this rule enforces, e.g. FR-PRV-5.",
+      "type": "string"
+    }
+  }
+}

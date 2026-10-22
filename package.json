@@ -1,0 +1,23 @@
+{
+  "name": "@loomspark/pipeline-kit",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Reusable, vendor-neutral AI delivery pipeline for Loomspark projects: CI, risk rules, hard rules and (later) triage, build, review and test agents.",
+  "type": "module",
+  "engines": {
+    "node": ">=22.18"
+  },
+  "scripts": {
+    "typecheck": "tsc --noEmit",
+    "test": "node --disable-warning=ExperimentalWarning --test 'test/**/*.test.ts'",
+    "kit": "node --disable-warning=ExperimentalWarning src/cli.ts"
+  },
+  "dependencies": {
+    "ajv": "^8.17.1",
+    "yaml": "^2.8.1"
+  },
+  "devDependencies": {
+    "@types/node": "^22.18.0",
+    "typescript": "^5.9.2"
+  }
+}

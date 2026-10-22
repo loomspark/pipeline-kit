@@ -1,0 +1,87 @@
+# yaml-language-server: $schema=https://raw.githubusercontent.com/loomspark/pipeline-kit/v0/schema/pipeline-config.schema.json
+#
+# Example project config for the Loomspark pipeline kit. Copy to .pipeline/config.yml in
+# your project. The project here is fictional. Field reference: docs/design.md#project-config.
+#
+# This file names secrets; it never holds their values. Values go in the project's
+# GitHub Actions secrets (Settings > Secrets and variables > Actions) or its host's store.
+
+version: 1
+
+project:
+  name: example-app
+  description: A fictional web app used to illustrate the config.
+
+verify:
+  nodeVersionFile: .nvmrc
+  install: npm ci
+  commands:
+    - name: typecheck
+      run: npm run typecheck
+    - name: test
+      run: npm test
+    - name: build
+      run: npm run build
+
+risk:
+  enforce: true
+  defaultTier: 1
+  approval:
+    label: risk:approved
+    fromTier: 2
+  rules:
+    # Tier 2 (escalate): an approver signs off before merge.
+    - tier: 2
+      paths: ["db/migrations/**", "supabase/migrations/**"]
+      reason: Database migrations
+    - tier: 2
+      paths: ["src/auth/**", "src/middleware.ts"]
+      reason: Sign-in, sessions and access control
+    - tier: 2
+      paths: ["src/payments/**"]
+      reason: Payments
+    - tier: 2
+      paths: [".github/workflows/**", ".pipeline/**", "Dockerfile", "package-lock.json", ".env.example"]
+      reason: CI, pipeline config, build image, dependencies or secrets
+    # Tier 0 (auto-ship, once enabled): docs and copy.
+    - tier: 0
+      paths: ["docs/**", "**/*.md"]
+      reason: Documentation
+
+hardRules:
+  presets: [secrets]
+  rules:
+    - id: no-production-dumps
+      description: Database dumps and exports hold real people's data and must never be committed.
+      paths: ["**/*.dump", "**/*.sql.gz", "exports/**"]
+      forbidFile: true
+    - id: no-third-party-trackers
+      description: No third-party analytics or advertising scripts.
+      paths: ["src/**"]
+      forbidPatterns: ["googletagmanager\\.com", "google-analytics\\.com", "connect\\.facebook\\.net"]
+      ignoreCase: true
+
+# Reserved for later milestones; validated now so projects can declare them early.
+previews:
+  source: deployment
+  environment: Preview
+
+journeys:
+  - id: sign-up
+    description: A new visitor creates an account and lands on their dashboard.
+    spec: e2e/sign-up.spec.ts
+
+testData:
+  reset: npm run db:reset:test
+  seed: npm run db:seed:fictional
+
+models:
+  gatewayUrl: https://gateway.example.invalid/v1
+  roles:
+    triage: cheap-model-id
+    build: strong-model-id
+
+secrets:
+  verify: []
+  build: [MODEL_GATEWAY_KEY]
+  test: [STAGING_DB_URL, PREVIEW_BYPASS_TOKEN]

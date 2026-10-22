@@ -1,0 +1,51 @@
+# yaml-language-server: $schema=../schema/pipeline-config.schema.json
+#
+# The kit's own config: it runs its checks on itself (from source, see
+# .github/workflows/self-check.yml).
+
+version: 1
+
+project:
+  name: pipeline-kit
+  description: Reusable, vendor-neutral AI delivery pipeline for Loomspark projects.
+
+verify:
+  nodeVersionFile: .nvmrc
+  commands:
+    - name: typecheck
+      run: npm run typecheck
+    - name: test
+      run: npm test
+    - name: validate-config
+      run: npm run kit -- validate
+
+risk:
+  rules:
+    # What every project's pipeline runs, or what decides whether a change escalates.
+    - tier: 2
+      paths: [".github/workflows/**", "action.yml"]
+      reason: Workflows and the action every project runs
+    - tier: 2
+      paths: ["schema/**"]
+      reason: The config contract every project depends on
+    - tier: 2
+      paths: ["src/risk.ts", "src/hard-rules.ts", "src/presets.ts", "src/glob.ts", "src/diff.ts", "src/config.ts"]
+      reason: Enforcement logic; a bug here weakens checks for every project
+    - tier: 2
+      paths: [".pipeline/**", "CLAUDE.md", "package.json", "package-lock.json"]
+      reason: Kit config, agent rules or dependencies
+    - tier: 0
+      paths: ["docs/**", "**/*.md"]
+      reason: Documentation
+
+hardRules:
+  presets: [secrets]
+  rules:
+    - id: no-project-data
+      description: The kit holds no project's data. Fixtures are fictional and built in test code.
+      paths: ["**/*.{json,jsonl,csv,ndjson,sql,dump}"]
+      exceptPaths: ["package.json", "package-lock.json", "tsconfig.json", "schema/*.json"]
+      forbidFile: true
+
+secrets:
+  verify: []
