@@ -13,6 +13,12 @@ inputs:
   head:
     description: Diff head commit (hard-rules, risk).
     default: ""
+  report-status:
+    description: risk only. "true" reports through the pipeline-kit/risk commit status, a review request and a PR comment, and the step itself passes; the status is the gate.
+    default: "false"
+  token:
+    description: Token for GitHub API calls (risk with report-status). Needs pull-requests write and statuses write.
+    default: ${{ github.token }}
 outputs:
   node-version-file:
     description: plan only
@@ -32,6 +38,9 @@ outputs:
   approval:
     description: risk only; not-needed | approved | needed | stale
     value: ${{ steps.run.outputs.approval }}
+  approved-by:
+    description: risk only; the approver's login, read from GitHub's record
+    value: ${{ steps.run.outputs.approved-by }}
 runs:
   using: composite
   steps:
@@ -53,9 +62,15 @@ runs:
         KIT_HEAD: ${{ inputs.head }}
         KIT_EVENT_ACTION: ${{ github.event.action }}
         KIT_EVENT_LABEL: ${{ github.event.label.name }}
+        KIT_EVENT_ACTOR: ${{ github.event.sender.login }}
         KIT_PR_LABELS: ${{ toJSON(github.event.pull_request.labels.*.name) }}
+        KIT_PR_NUMBER: ${{ github.event.pull_request.number }}
+        KIT_PR_AUTHOR: ${{ github.event.pull_request.user.login }}
+        KIT_REPORT_STATUS: ${{ inputs.report-status }}
+        GITHUB_TOKEN: ${{ inputs.token }}
       run: |
         args=("$KIT_COMMAND" --config "$KIT_CONFIG")
         [ -n "$KIT_BASE" ] && args+=(--base "$KIT_BASE")
         [ -n "$KIT_HEAD" ] && args+=(--head "$KIT_HEAD")
+        [ "$KIT_REPORT_STATUS" = "true" ] && args+=(--report-status)
         node --disable-warning=ExperimentalWarning "$GITHUB_ACTION_PATH/src/cli.ts" "${args[@]}"

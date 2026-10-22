@@ -71,9 +71,9 @@ test("migration: tier 2 fails until the approval label is applied", () => {
   const needed = kit(["risk", "--base", "main"], { KIT_EVENT_ACTION: "synchronize", KIT_PR_LABELS: "[]" });
   assert.equal(needed.code, 1);
   assert.match(needed.out, /::error title=risk::Tier 2/);
-  const approved = kit(["risk", "--base", "main"], { KIT_EVENT_ACTION: "labeled", KIT_EVENT_LABEL: "risk:approved", KIT_PR_LABELS: '["risk:approved"]' });
+  const approved = kit(["risk", "--base", "main"], { KIT_EVENT_ACTION: "labeled", KIT_EVENT_LABEL: "risk:approved", KIT_EVENT_ACTOR: "example-owner", KIT_PR_LABELS: '["risk:approved"]' });
   assert.equal(approved.code, 0, approved.out);
-  assert.match(approved.summary, /Approved/);
+  assert.match(approved.summary, /Approved by @example-owner/);
 });
 
 test("a committed secret fails hard rules and is never printed", () => {

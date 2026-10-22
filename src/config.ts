@@ -38,7 +38,13 @@ function withDefaults(c: PipelineConfig): PipelineConfig {
   c.risk.enforce ??= true;
   c.risk.defaultTier ??= 1;
   const approval: Partial<PipelineConfig["risk"]["approval"]> = c.risk.approval ?? {};
-  c.risk.approval = { label: approval.label ?? "risk:approved", fromTier: approval.fromTier ?? 2 };
+  c.risk.approval = {
+    method: approval.method ?? "label",
+    approvers: approval.approvers ?? [],
+    requestReview: approval.requestReview ?? true,
+    label: approval.label ?? "risk:approved",
+    fromTier: approval.fromTier ?? 2,
+  };
   const hard: Partial<PipelineConfig["hardRules"]> = c.hardRules ?? {};
   c.hardRules = { presets: hard.presets ?? [], rules: hard.rules ?? [] };
   c.secrets ??= {};

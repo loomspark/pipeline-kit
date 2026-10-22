@@ -39,7 +39,13 @@ export interface PipelineConfig {
   risk: {
     enforce: boolean;
     defaultTier: Tier;
-    approval: { label: string; fromTier: Tier };
+    approval: {
+      method: "review" | "label";
+      approvers: string[];
+      requestReview: boolean;
+      label: string;
+      fromTier: Tier;
+    };
     rules: RiskRule[];
   };
   hardRules: { presets: string[]; rules: HardRule[] };

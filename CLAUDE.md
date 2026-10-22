@@ -19,7 +19,7 @@ These are not defaults to trade off.
 4. **Never print what a rule matched.** Hard-rule findings report rule, file and line only. Matched text can be a secret or someone's personal data, and CI logs are not a safe place for either.
 5. **Fail closed.** When a check can't tell whether something is safe (unknown config key, approval it can't tie to the current head), it fails.
 6. **No production credentials in the pipeline.** Agents and CI get staging or test credentials only.
-7. **Agents never approve.** An agent must not apply the approval label, approve a PR, or edit risk rules to lower its own change's tier. Changes to `.pipeline/**` are always tier 2.
+7. **Agents never approve.** An agent must not apply the approval label, approve a PR, or edit risk rules to lower its own change's tier. Changes to `.pipeline/**` are always tier 2. Agents push and open PRs as the agent identity (`npm run kit -- agent git|gh ...`, `docs/agent-identity.md`), never as a person, once it's set up.
 
 ## Stack and commands
 
@@ -27,11 +27,11 @@ TypeScript run directly by Node's type stripping (Node >= 22.18; CI uses 24), no
 
 - `npm test`: Node test runner over `test/**/*.test.ts`
 - `npm run typecheck`
-- `npm run kit -- <command>`: run the CLI locally (`validate`, `plan`, `hard-rules`, `risk`)
+- `npm run kit -- <command>`: run the CLI locally (`validate`, `plan`, `hard-rules`, `risk`, `agent git|gh`)
 
 ## Releases
 
-Projects call `loomspark/pipeline-kit/.github/workflows/ci.yml@v0`, and that workflow uses the action at `@v0`. Releasing is: tag `v0.x.y`, then move `v0` to it. See `docs/design.md#versioning`.
+Projects call `loomspark/pipeline-kit/.github/workflows/ci.yml@v1`, and that workflow uses the action at `@v1`. Releasing is: tag `v1.x.y`, then move `v1` to it. `v0` is frozen. See `docs/design.md#versioning`.
 
 ## Commits
 

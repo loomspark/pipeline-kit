@@ -61,7 +61,7 @@ Reserved sections are validated now so projects can declare them early; nothing 
 
 Used by risk and hard rules. Anchored at the repo root: `*.md` matches root files only, `**/*.md` any depth. `**` spans any number of segments and **includes dotfiles and dot-directories** (`.env`, `.github/`), unlike most glob libraries' defaults; that is deliberate for a security check. `*` stays within a segment, `?` is one character, `{a,b}` alternatives, `[abc]` and `[!abc]` classes. Implemented in `src/glob.ts` (no dependency) with tests.
 
-## 4. Checks (milestone 1)
+## 4. Checks (milestones 1 and 2)
 
 ### verify
 
@@ -92,23 +92,33 @@ Runs on PRs only.
 
 **Classification.** A changed file takes the **highest** tier among the rules matching it, or `defaultTier` if none match. The change takes the highest tier of its files. Because the highest tier wins, a broad tier-0 rule (`**/*.md`) can never downgrade a risky path (`src/auth/README.md`). Deleted files count: removing a migration or auth module is as risky as editing it. Renames count both paths. An empty change is tier 0.
 
-**Approval.** When the tier is at or above `approval.fromTier`, the check fails until an approver applies the approval label. Approval counts **only on the `labeled` event that applies the label**, so it always refers to the head the approver looked at. Any later event (a new push, another label added or removed) reruns the check and reports the approval as stale; the approver removes and re-applies the label. This fails closed without needing any API access. With `enforce: false` the check reports only.
+**Approval** (ADR 0002). When the tier is at or above `approval.fromTier`, the change needs a listed approver. Two methods:
 
-Outputs: `tier` (0 to 2) and `approval` (`not-needed`, `approved`, `needed`, `stale`), plus a job summary listing every file with its tier and reason.
+- **`review`** (traceable; use it once agents have their own identity). Approved when an approver's latest decisive review (approve, request changes, dismissed) **approves the PR's current head commit**. GitHub records the reviewer and the commit, so a later push makes the approval stale, and reviews from agents or anyone not in `approvers` are ignored.
+- **`label`** (for projects whose agents still act as the owner). Approval counts **only on the `labeled` event that applies the label**, and, when `approvers` is set, only if one of them applied it. Any later event (a push, another label change) needs it re-applied. Fails closed.
 
-**Limits today.** GitHub Free can't make checks *required* on private repos, so a red risk check informs people and agents but doesn't physically block a merge (K4). Agents currently act through the owner's GitHub account, so the label can't prove a human applied it (K3). Agents are bound by the CLAUDE.md rule never to apply it.
+**Reporting.** In CI the result is the **`pipeline-kit/risk` commit status** on the head commit: failing while approval is needed, green once approved (or below the threshold), with a description such as "Tier 2 (escalate): approved by @owner". Every run updates the same status, and the risk job also runs on `pull_request_review` events, so an approval turns it green without a new push. The job itself passes whenever it reported; the status is the gate. When approval is needed, the job **requests a review from the approvers** (GitHub notifies them, including in the mobile app) and keeps **one plain-English PR comment** up to date: why approval is needed, how to approve, and, afterwards, who approved with a link to their review. With `enforce: false` the status is always green and only informs.
+
+Outputs: `tier` (0 to 2), `approval` (`not-needed`, `approved`, `needed`, `stale`) and `approved-by`, plus a job summary listing every file with its tier and reason.
+
+**Limits today.** GitHub Free can't make checks or statuses *required* on private repos, so a failing risk status informs people and stops agents but doesn't physically block a merge (K4). On the owner's laptop, agent sessions could still reach the owner's own login (K7); the approval itself doesn't depend on that, because it's read from GitHub's record of who reviewed.
+
+### Agent identity
+
+Agents act on GitHub as a GitHub App, never as a person: `pipeline-kit agent git|gh <args>` runs the command with a one-hour token for the current repo and commits as `<app-slug>[bot]`. The app has no `workflows` permission, so CI changes need a person. Setup and limits: [`agent-identity.md`](agent-identity.md).
 
 ## 5. Adopting the kit
 
 1. Add `.pipeline/config.yml` (start from `examples/pipeline.config.yml`). Put the config, workflows, migrations, auth, payments, personal-data code, outbound email, new third-party services, security headers, lockfiles and anything legal at tier 2.
-2. Add the caller workflow (see README). Triggers must include `labeled` and `unlabeled` so approval reruns the check.
-3. Create the approval label in the repo.
+2. Add the caller workflow (see README): triggers `pull_request` (including `labeled`, `unlabeled`) and `pull_request_review` (`submitted`, `dismissed`), and permissions `contents: read`, `pull-requests: write`, `statuses: write`.
+3. Choose the approval method: `review` with `approvers` once the agent identity exists (`agent-identity.md`), otherwise `label` (create the label in the repo).
 4. In the project's `CLAUDE.md`, tell agents: a failing risk check means "wait for the owner"; never apply the approval label.
 5. The kit repo is private, so it must allow access from the project's repos (kit repo: Settings > Actions > General > Access). Done for repos owned by `loomspark`.
 
 ## 6. Versioning
 
-- Projects call `ci.yml@v0`; inside, the workflow uses the action at `@v0`. A release is a `v0.x.y` tag plus moving `v0` to it, so both move together.
+- Projects call `ci.yml@v1`; inside, the workflow uses the action at `@v1`. A release is a `v1.x.y` tag plus moving `v1` to it, so both move together. A new major (`v2`) only for changes callers must act on; old majors keep working.
+- `v0` (label approval, risk as the job result, no API calls) is frozen at `v0.1.0`. `v1` (ADR 0002) needs callers to grant `pull-requests: write` and `statuses: write` and to listen for `pull_request_review`.
 - A project can pin the workflow to an exact tag or SHA, but the action reference inside it still follows `@v0` (GitHub doesn't allow an expression in `uses:`). Acceptable while one owner releases both; revisit before Made Impact depends on it (K5).
 - The kit's own CI (`self-check.yml`) runs the action from the PR's checkout (`uses: ./`), so changes are tested before release.
 - Config format changes: additive within `version: 1`; breaking changes bump `version` with an ADR and a migration note.
@@ -119,7 +129,7 @@ Outputs: `tier` (0 to 2) and `approval` (`not-needed`, `approved`, `needed`, `st
 |---|---|---|---|
 | 0 | Kit | Repo, CLAUDE.md, this doc, ADR 0001, config schema | Done 22 Oct 2026 |
 | 1 | 0 and 2 | Reusable CI (`verify`), changed-path risk check with label approval, hard rules with `secrets` preset; Ward Intel wired on a branch | Done 22 Oct 2026 |
-| 2 | 2 | **[Proposed]** Escalation channel (one place the owner sees approval requests), tier labels on PRs, a bot identity for agents (K3), Dependabot patch-bump exception for lockfiles (K6) | |
+| 2 | 2 | Agent identity (GitHub App) and `agent git/gh`; approval by GitHub review on the exact commit; risk as a commit status; review requests and a plain-English PR comment so approvals reach the owner's phone (ADR 0002). Released as `v1`. Still to do: Dependabot patch-bump exception (K6) | Built 22 Oct 2026; owner creates the app |
 | 3 | 1 | **[Proposed]** Preview URL resolver (`previews`), Playwright conventions and helpers, fixed journey suite run against previews; secret exposure per stage | |
 | 4 | 1 | **[Proposed]** AI exploratory tester (layer 2) through the model gateway; outputs new Playwright tests | |
 | 5 | 3 | **[Proposed]** Intake issue form, triage, build and reviewer agents (coding agent as a swappable CLI step) | |
@@ -132,3 +142,4 @@ What Ward Intel can't prove (human-facing sign-up, invite emails, per-role permi
 | Date | Change |
 |---|---|
 | 2026-10-22 | Milestones 0 and 1: repo, schema v1, CLI, reusable CI workflow, composite action, `secrets` preset |
+| 2026-10-22 | Milestone 2 (`v1`): agent identity, review approvals with `approvers`, `pipeline-kit/risk` status, review requests, risk PR comment (ADR 0002) |

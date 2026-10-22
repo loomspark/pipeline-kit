@@ -9,7 +9,7 @@
   },
   "scripts": {
     "typecheck": "tsc --noEmit",
-    "test": "node --disable-warning=ExperimentalWarning --test 'test/**/*.test.ts'",
+    "test": "node --disable-warning=ExperimentalWarning --test --test-timeout=30000 'test/**/*.test.ts'",
     "kit": "node --disable-warning=ExperimentalWarning src/cli.ts"
   },
   "dependencies": {

@@ -20,6 +20,11 @@ verify:
       run: npm run kit -- validate
 
 risk:
+  approval:
+    # Switches to method: review once the agent identity opens the kit's PRs
+    # (the owner can't review PRs opened under their own account).
+    method: label
+    approvers: [loomspark]
   rules:
     # What every project's pipeline runs, or what decides whether a change escalates.
     - tier: 2
@@ -29,8 +34,8 @@ risk:
       paths: ["schema/**"]
       reason: The config contract every project depends on
     - tier: 2
-      paths: ["src/risk.ts", "src/hard-rules.ts", "src/presets.ts", "src/glob.ts", "src/diff.ts", "src/config.ts"]
-      reason: Enforcement logic; a bug here weakens checks for every project
+      paths: ["src/risk.ts", "src/hard-rules.ts", "src/presets.ts", "src/glob.ts", "src/diff.ts", "src/config.ts", "src/agent.ts", "src/github.ts", "src/cli.ts"]
+      reason: Enforcement and identity logic; a bug here weakens checks for every project
     - tier: 2
       paths: [".pipeline/**", "CLAUDE.md", "package.json", "package-lock.json"]
       reason: Kit config, agent rules or dependencies

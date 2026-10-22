@@ -1,9 +1,12 @@
-# Reusable CI for Loomspark projects (milestone 1). A project calls it from its own
-# workflow; see docs/design.md#adopting-the-kit. Three checks:
+# Reusable CI for Loomspark projects (v1). A project calls it from its own workflow;
+# see docs/design.md#adopting-the-kit. Checks:
 #   verify      the project's own commands (typecheck, test, build...) from its config
 #   hard-rules  things that must never land, on every PR and every push to the default branch
-#   risk        changed-path tier for PRs; tier >= approval.fromTier needs the approval label
-# No secrets are passed or needed. Nothing here assumes a host or an AI vendor.
+#   risk        changed-path tier for PRs, reported as the `pipeline-kit/risk` commit status:
+#               tier >= approval.fromTier stays failing until an approver approves. Reruns
+#               on reviews, so an approval turns it green without a new push.
+# The caller grants: contents read, pull-requests write (review requests, the risk
+# comment), statuses write (the risk status). No secrets. No host or AI vendor assumed.
 name: pipeline-kit CI
 
 on:
@@ -23,6 +26,7 @@ permissions:
 
 jobs:
   verify:
+    if: github.event_name != 'pull_request_review'
     runs-on: ubuntu-latest
     timeout-minutes: 20
     steps:
@@ -30,7 +34,7 @@ jobs:
         with:
           persist-credentials: false
       - id: plan
-        uses: loomspark/pipeline-kit@v0
+        uses: loomspark/pipeline-kit@v1
         with:
           command: plan
           config: ${{ inputs.config }}
@@ -65,6 +69,7 @@ jobs:
           fi
 
   hard-rules:
+    if: github.event_name != 'pull_request_review'
     runs-on: ubuntu-latest
     timeout-minutes: 10
     steps:
@@ -72,7 +77,7 @@ jobs:
         with:
           fetch-depth: 0
           persist-credentials: false
-      - uses: loomspark/pipeline-kit@v0
+      - uses: loomspark/pipeline-kit@v1
         with:
           command: hard-rules
           config: ${{ inputs.config }}
@@ -80,8 +85,12 @@ jobs:
           head: ${{ github.event_name == 'pull_request' && github.event.pull_request.head.sha || github.sha }}
 
   risk:
-    if: github.event_name == 'pull_request'
+    if: github.event_name == 'pull_request' || github.event_name == 'pull_request_review'
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      pull-requests: write
+      statuses: write
     timeout-minutes: 10
     outputs:
       tier: ${{ steps.risk.outputs.tier }}
@@ -91,9 +100,10 @@ jobs:
           fetch-depth: 0
           persist-credentials: false
       - id: risk
-        uses: loomspark/pipeline-kit@v0
+        uses: loomspark/pipeline-kit@v1
         with:
           command: risk
           config: ${{ inputs.config }}
           base: ${{ github.event.pull_request.base.sha }}
           head: ${{ github.event.pull_request.head.sha }}
+          report-status: "true"

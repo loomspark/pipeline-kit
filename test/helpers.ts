@@ -1,5 +1,6 @@
 import { parseConfig } from "../src/config.ts";
 import type { PipelineConfig } from "../src/types.ts";
+import type { Fetch } from "../src/github.ts";
 
 // A fictional project used across tests. No real project's data belongs in kit tests.
 export const EXAMPLE_YAML = `
@@ -50,3 +51,31 @@ export const fake = {
   pem: () => "-----BEGIN " + "RSA PRIVATE KEY-----",
   dbUrl: () => "postgres" + "://app_user:" + "s3cretvalue" + "@db.example.invalid/app",
 };
+
+export interface Call {
+  method: string;
+  path: string;
+  body?: any;
+  auth?: string;
+}
+
+/** A fake GitHub: routes "METHOD /path" (query stripped) to canned responses. */
+export function fakeGitHub(routes: Record<string, (call: Call) => unknown>) {
+  const calls: Call[] = [];
+  const fetchImpl: Fetch = async (input, init) => {
+    const url = new URL(String(input));
+    const call: Call = {
+      method: init?.method ?? "GET",
+      path: url.pathname + url.search,
+      body: init?.body ? JSON.parse(String(init.body)) : undefined,
+      auth: (init?.headers as Record<string, string>)?.Authorization,
+    };
+    calls.push(call);
+    const handler = routes[`${call.method} ${url.pathname}`];
+    if (!handler) return new Response("not found", { status: 404 });
+    const out = handler(call);
+    return out === undefined ? new Response(null, { status: 204 }) : Response.json(out);
+  };
+  return { calls, fetch: fetchImpl };
+}
+
