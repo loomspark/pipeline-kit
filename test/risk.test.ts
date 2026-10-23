@@ -36,14 +36,48 @@ test("empty change is tier 0", () => {
   assert.equal(classify([], exampleConfig()).tier, 0);
 });
 
-test("approval only counts on the event that applies the label", () => {
+const ev = (action: string, labels: string[] = [], label?: string, actor = "example-owner") => ({ action, labels, label, actor });
+
+test("label approval only counts on the event that applies it", () => {
   const c = exampleConfig();
-  assert.equal(approvalState(1, c, { action: "synchronize", labels: [] }), "not-needed");
-  assert.equal(approvalState(2, c, { action: "opened", labels: [] }), "needed");
-  assert.equal(approvalState(2, c, { action: "labeled", label: "risk:approved", labels: ["risk:approved"] }), "approved");
+  const st = (tier: 0 | 1 | 2, e: ReturnType<typeof ev>) => approvalState(tier, c, e).status;
+  assert.equal(st(1, ev("synchronize")), "not-needed");
+  assert.equal(st(2, ev("opened")), "needed");
+  assert.deepEqual(approvalState(2, c, ev("labeled", ["risk:approved"], "risk:approved")), { status: "approved", by: "example-owner" });
   // A push after approval, or any other label change, needs the label re-applied.
-  assert.equal(approvalState(2, c, { action: "synchronize", labels: ["risk:approved"] }), "stale");
-  assert.equal(approvalState(2, c, { action: "labeled", label: "docs", labels: ["risk:approved", "docs"] }), "stale");
+  assert.equal(st(2, ev("synchronize", ["risk:approved"])), "stale");
+  assert.equal(st(2, ev("labeled", ["risk:approved", "docs"], "docs")), "stale");
   // A PR opened with the label already on it (e.g. by an agent) is not approved.
-  assert.equal(approvalState(2, c, { action: "opened", labels: ["risk:approved"] }), "stale");
+  assert.equal(st(2, ev("opened", ["risk:approved"])), "stale");
+});
+
+test("label approval from someone who isn't an approver doesn't count", () => {
+  const c = exampleConfig();
+  c.risk.approval.approvers = ["Example-Owner"];
+  assert.equal(approvalState(2, c, ev("labeled", ["risk:approved"], "risk:approved", "example-agent[bot]")).status, "stale");
+  assert.equal(approvalState(2, c, ev("labeled", ["risk:approved"], "risk:approved", "example-owner")).status, "approved");
+});
+
+test("review approval: an approver's latest decisive review must approve the current head", () => {
+  const c = exampleConfig();
+  c.risk.approval.method = "review";
+  c.risk.approval.approvers = ["example-owner"];
+  const head = "b".repeat(40);
+  const old = "a".repeat(40);
+  const st = (reviews: { user: string; state: string; commit: string }[]) => approvalState(2, c, ev("submitted"), { head, reviews });
+
+  assert.equal(st([]).status, "needed");
+  assert.deepEqual(st([{ user: "example-owner", state: "APPROVED", commit: head }]), { status: "approved", by: "example-owner", evidence: undefined });
+  // Approved an earlier version: stale.
+  assert.equal(st([{ user: "example-owner", state: "APPROVED", commit: old }]).status, "stale");
+  // Agents, or anyone not listed, can't approve.
+  assert.equal(st([{ user: "example-agent[bot]", state: "APPROVED", commit: head }]).status, "needed");
+  // A later "request changes" or dismissal withdraws approval; a comment doesn't.
+  assert.equal(st([{ user: "example-owner", state: "APPROVED", commit: head }, { user: "example-owner", state: "CHANGES_REQUESTED", commit: head }]).status, "needed");
+  assert.equal(st([{ user: "example-owner", state: "APPROVED", commit: head }, { user: "example-owner", state: "DISMISSED", commit: head }]).status, "needed");
+  assert.equal(st([{ user: "example-owner", state: "APPROVED", commit: head }, { user: "example-owner", state: "COMMENTED", commit: head }]).status, "approved");
+  // Login case doesn't matter.
+  assert.equal(st([{ user: "Example-Owner", state: "APPROVED", commit: head }]).status, "approved");
+  // Without review data (e.g. run locally) it fails closed.
+  assert.equal(approvalState(2, c, ev("submitted")).status, "needed");
 });

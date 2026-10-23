@@ -1,10 +1,12 @@
 # The kit's own CI. Same checks as ci.yml, but runs the action from this checkout
-# (`uses: ./`) so a PR is checked by its own code, not by the released @v0.
+# (`uses: ./`) so a PR is checked by its own code, not by the released tag.
 name: self-check
 
 on:
   pull_request:
     types: [opened, synchronize, reopened, labeled, unlabeled]
+  pull_request_review:
+    types: [submitted, dismissed]
   push:
     branches: [main]
 
@@ -17,6 +19,7 @@ permissions:
 
 jobs:
   verify:
+    if: github.event_name != 'pull_request_review'
     runs-on: ubuntu-latest
     timeout-minutes: 10
     steps:
@@ -35,6 +38,7 @@ jobs:
         run: npm run kit -- validate --config examples/pipeline.config.yml
 
   hard-rules:
+    if: github.event_name != 'pull_request_review'
     runs-on: ubuntu-latest
     timeout-minutes: 10
     steps:
@@ -49,8 +53,12 @@ jobs:
           head: ${{ github.event_name == 'pull_request' && github.event.pull_request.head.sha || github.sha }}
 
   risk:
-    if: github.event_name == 'pull_request'
+    if: github.event_name == 'pull_request' || github.event_name == 'pull_request_review'
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      pull-requests: write
+      statuses: write
     timeout-minutes: 10
     steps:
       - uses: actions/checkout@v5
@@ -62,3 +70,4 @@ jobs:
           command: risk
           base: ${{ github.event.pull_request.base.sha }}
           head: ${{ github.event.pull_request.head.sha }}
+          report-status: "true"

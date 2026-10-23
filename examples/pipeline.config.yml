@@ -27,7 +27,11 @@ risk:
   enforce: true
   defaultTier: 1
   approval:
-    label: risk:approved
+    # review: a listed person approves the PR on GitHub (traceable; needs agents to act
+    # as their own identity, see docs/agent-identity.md). label: the older label method.
+    method: review
+    approvers: [example-owner]
+    requestReview: true
     fromTier: 2
   rules:
     # Tier 2 (escalate): an approver signs off before merge.

@@ -10,7 +10,7 @@ test("applies schema defaults", () => {
   assert.equal(c.verify.nodeVersionFile, ".nvmrc");
   assert.equal(c.risk.enforce, true);
   assert.equal(c.risk.defaultTier, 1);
-  assert.deepEqual(c.risk.approval, { label: "risk:approved", fromTier: 2 });
+  assert.deepEqual(c.risk.approval, { method: "label", approvers: [], requestReview: true, label: "risk:approved", fromTier: 2 });
   assert.deepEqual(c.secrets, {});
 });
 
@@ -58,4 +58,13 @@ test("rejects duplicate rule ids and invalid regexes", () => {
 test("a hard rule must forbid something", () => {
   const text = EXAMPLE_YAML.replace("      forbidFile: true\n", "");
   assert.throws(() => parseConfig(text), ConfigError);
+});
+
+test("review approval needs at least one approver", () => {
+  const base = EXAMPLE_YAML.replace("risk:\n  rules:", "risk:\n  approval:\n    method: review\nAPPROVERS  rules:");
+  assert.throws(() => parseConfig(base.replace("APPROVERS", "")), ConfigError);
+  assert.throws(() => parseConfig(base.replace("APPROVERS", "    approvers: []\n")), ConfigError);
+  const ok = parseConfig(base.replace("APPROVERS", "    approvers: [example-owner]\n"));
+  assert.equal(ok.risk.approval.method, "review");
+  assert.deepEqual(ok.risk.approval.approvers, ["example-owner"]);
 });

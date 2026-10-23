@@ -1,11 +1,13 @@
 import { existsSync } from "node:fs";
 import { parseArgs } from "node:util";
 import { allHardRules, ConfigError, DEFAULT_CONFIG_PATH, loadConfig } from "./config.ts";
-import { readChange } from "./diff.ts";
+import { readChange, resolveSha } from "./diff.ts";
 import { checkHardRules } from "./hard-rules.ts";
-import { annotation, hardRulesSummary, riskSummary, setOutput, writeSummary } from "./report.ts";
+import { runAsAgent } from "./agent.ts";
+import { GitHub } from "./github.ts";
+import { annotation, hardRulesSummary, RISK_COMMENT_MARKER, riskComment, riskStatusDescription, riskSummary, setOutput, writeSummary } from "./report.ts";
 import { approvalState, classify } from "./risk.ts";
-import { TIER_NAMES } from "./types.ts";
+import type { Review } from "./risk.ts";
 
 const USAGE = `pipeline-kit <command> [options]
 
@@ -14,18 +16,32 @@ Commands:
   plan                     Print the verify plan (install, commands) as JSON
   hard-rules               Check a diff against the hard rules
   risk                     Classify a diff by changed paths and check approval
+  agent git|gh <args...>   Run git or gh as the agent identity (docs/agent-identity.md)
 
 Options:
   --config <path>          Project config (default ${DEFAULT_CONFIG_PATH})
   --base <ref>             Diff base (default origin/main); compared from the merge base
   --head <ref>             Diff head (default HEAD)
+  --report-status          risk: report through a commit status, review request and PR
+                           comment (needs GITHUB_TOKEN, GITHUB_REPOSITORY, KIT_PR_NUMBER)
+                           and exit 0; the status is the gate. Otherwise the exit code is.
 
-risk reads the pull request event from KIT_EVENT_ACTION, KIT_EVENT_LABEL and
-KIT_PR_LABELS (JSON array). Without them it reports the tier and approval as needed.`;
+risk reads the event from KIT_EVENT_ACTION, KIT_EVENT_LABEL, KIT_EVENT_ACTOR,
+KIT_PR_LABELS (JSON array) and KIT_PR_AUTHOR. Without them it reports approval as needed.`;
+
+export const RISK_STATUS_CONTEXT = "pipeline-kit/risk";
 
 const ZERO_SHA = /^0+$/;
 
-function main(argv: string[]): number {
+async function main(argv: string[]): Promise<number> {
+  if (argv[0] === "agent") {
+    const tool = argv[1];
+    if (tool !== "git" && tool !== "gh") {
+      console.error("Usage: pipeline-kit agent git|gh <args...>");
+      return 2;
+    }
+    return runAsAgent(tool, argv.slice(2));
+  }
   const { positionals, values } = parseArgs({
     args: argv,
     allowPositionals: true,
@@ -34,6 +50,7 @@ function main(argv: string[]): number {
       base: { type: "string" },
       head: { type: "string" },
       help: { type: "boolean", short: "h" },
+      "report-status": { type: "boolean" },
     },
   });
   const command = positionals[0];
@@ -84,22 +101,63 @@ function main(argv: string[]): number {
     }
 
     case "risk": {
+      const env = process.env;
       const change = readChange(base, head);
       const result = classify(change.files, config);
-      const labels: string[] = JSON.parse(process.env.KIT_PR_LABELS || "[]");
-      const approval = approvalState(result.tier, config, {
-        action: process.env.KIT_EVENT_ACTION ?? "",
-        label: process.env.KIT_EVENT_LABEL || undefined,
-        labels,
-      });
+      const headSha = resolveSha(head);
+      const pr = Number(env.KIT_PR_NUMBER) || 0;
+      const github = env.GITHUB_TOKEN && env.GITHUB_REPOSITORY && pr
+        ? new GitHub({ token: env.GITHUB_TOKEN, repo: env.GITHUB_REPOSITORY, api: env.GITHUB_API_URL })
+        : undefined;
+      const { method, fromTier } = config.risk.approval;
+      let reviews: Review[] | undefined;
+      if (method === "review" && result.tier >= fromTier && github) reviews = await github.reviews(pr);
+      const approval = approvalState(
+        result.tier,
+        config,
+        {
+          action: env.KIT_EVENT_ACTION ?? "",
+          label: env.KIT_EVENT_LABEL || undefined,
+          actor: env.KIT_EVENT_ACTOR || undefined,
+          labels: JSON.parse(env.KIT_PR_LABELS || "[]"),
+        },
+        reviews && { head: headSha, reviews },
+      );
       const summary = riskSummary(result, approval, config);
       writeSummary(summary);
       console.log(summary);
       setOutput("tier", String(result.tier));
-      setOutput("approval", approval);
-      const blocked = config.risk.enforce && (approval === "needed" || approval === "stale");
+      setOutput("approval", approval.status);
+      setOutput("approved-by", approval.by ?? "");
+      const waiting = approval.status === "needed" || approval.status === "stale";
+      const blocked = config.risk.enforce && waiting;
+
+      if (values["report-status"]) {
+        if (!github) throw new Error("--report-status needs GITHUB_TOKEN, GITHUB_REPOSITORY and KIT_PR_NUMBER");
+        const runUrl = env.GITHUB_RUN_ID ? `${env.GITHUB_SERVER_URL}/${env.GITHUB_REPOSITORY}/actions/runs/${env.GITHUB_RUN_ID}` : undefined;
+        await github.setStatus(headSha, {
+          state: blocked ? "failure" : "success",
+          context: RISK_STATUS_CONTEXT,
+          description: riskStatusDescription(result.tier, approval, config),
+          target_url: runUrl,
+        });
+        if (result.tier >= fromTier) await github.upsertComment(pr, RISK_COMMENT_MARKER, riskComment(result, approval, config));
+        if (waiting && config.risk.approval.requestReview) {
+          const author = (env.KIT_PR_AUTHOR ?? "").toLowerCase();
+          const reviewers = config.risk.approval.approvers.filter((a) => a.toLowerCase() !== author);
+          try {
+            await github.requestReviewers(pr, reviewers);
+          } catch (e) {
+            // e.g. the approver opened the PR themselves: GitHub refuses self-review requests.
+            console.log(annotation("warning", `Could not request review: ${(e as Error).message}`, { title: "risk" }));
+          }
+        }
+        console.log(`Reported ${RISK_STATUS_CONTEXT}: ${blocked ? "failure" : "success"}`);
+        return 0;
+      }
+
       if (blocked) {
-        console.log(annotation("error", `Tier ${result.tier} (${TIER_NAMES[result.tier]}): ${approval === "stale" ? "approval is stale; re-apply" : "needs"} the ${config.risk.approval.label} label from an approver.`, { title: "risk" }));
+        console.log(annotation("error", riskStatusDescription(result.tier, approval, config), { title: "risk" }));
       }
       return blocked ? 1 : 0;
     }
@@ -111,7 +169,7 @@ function main(argv: string[]): number {
 }
 
 try {
-  process.exitCode = main(process.argv.slice(2));
+  process.exitCode = await main(process.argv.slice(2));
 } catch (e) {
   if (e instanceof ConfigError) {
     console.log(annotation("error", e.message, { title: "pipeline config" }));

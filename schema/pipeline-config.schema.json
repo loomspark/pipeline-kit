@@ -64,13 +64,31 @@
           "type": "object",
           "additionalProperties": false,
           "properties": {
+            "method": {
+              "description": "review: an approver's GitHub review approving the PR's current head commit (recorded by GitHub against that commit and that person). label: an approver applies the label; it counts only on the event that applies it. review is the traceable one; label suits repos where agents still act as the owner.",
+              "enum": ["review", "label"],
+              "default": "label"
+            },
+            "approvers": {
+              "description": "GitHub logins whose approval counts. Required for method: review. For method: label, if set, only these people applying the label counts. Never list an agent identity.",
+              "type": "array",
+              "uniqueItems": true,
+              "items": { "type": "string", "pattern": "^[A-Za-z0-9-]+$" }
+            },
+            "requestReview": {
+              "description": "When a change needs approval, request a review from the approvers (GitHub notifies them, including in its mobile app).",
+              "type": "boolean",
+              "default": true
+            },
             "label": {
-              "description": "PR label an approver applies to approve a risky change. Approval counts only on the event that applies it: any later push or label change needs it re-applied.",
+              "description": "For method: label. PR label an approver applies to approve a risky change. Any later push or label change needs it re-applied.",
               "type": "string",
               "default": "risk:approved"
             },
             "fromTier": { "$ref": "#/definitions/tier", "default": 2 }
-          }
+          },
+          "if": { "required": ["method"], "properties": { "method": { "const": "review" } } },
+          "then": { "required": ["approvers"], "properties": { "approvers": { "minItems": 1 } } }
         },
         "rules": {
           "type": "array",

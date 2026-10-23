@@ -100,3 +100,8 @@ export function readChange(base: string, head: string): Change {
   const added = parseAddedLines(git(["diff", "-U0", "--no-renames", "--no-color", "--no-ext-diff", range]));
   return { files, added };
 }
+
+/** Full commit SHA for a ref. */
+export function resolveSha(ref: string): string {
+  return git(["rev-parse", "--verify", `${ref}^{commit}`]).trim();
+}

@@ -2,6 +2,7 @@ import { appendFileSync } from "node:fs";
 import { TIER_NAMES } from "./types.ts";
 import type { Finding } from "./hard-rules.ts";
 import type { Approval, RiskResult } from "./risk.ts";
+import type { Tier } from "./types.ts";
 import type { PipelineConfig } from "./types.ts";
 
 // Output for people (job summary, terminal) and for GitHub (annotations, step outputs).
@@ -40,30 +41,89 @@ export function hardRulesSummary(findings: readonly Finding[], filesChecked: num
   ].join("\n");
 }
 
-export function riskSummary(result: RiskResult, approval: Approval, config: PipelineConfig): string {
-  const { label, fromTier } = config.risk.approval;
-  const verdict: Record<Approval, string> = {
-    "not-needed": `Below tier ${fromTier}: no approval needed.`,
-    approved: `Approved: \`${label}\` was applied to this head.`,
-    needed: `Needs approval: an approver reviews the change and applies the \`${label}\` label.`,
-    stale: `Approval is stale: the change or its labels moved after \`${label}\` was applied. An approver re-checks and removes then re-applies the label.`,
-  };
-  const rows = [...result.files]
+function approvalLine(approval: Approval, config: PipelineConfig): string {
+  const { method, label, fromTier, approvers } = config.risk.approval;
+  const who = approvers.length ? approvers.map((a) => `@${a}`).join(" or ") : "an approver";
+  const how = method === "review" ? "approves this pull request (a GitHub review)" : `applies the \`${label}\` label`;
+  switch (approval.status) {
+    case "not-needed":
+      return `Below tier ${fromTier}: no approval needed.`;
+    case "approved":
+      return `Approved by @${approval.by}${approval.evidence ? ` ([review](${approval.evidence}))` : ""}, for this exact version.`;
+    case "needed":
+      return `Waiting for approval: ${who} ${how}.`;
+    case "stale":
+      return method === "review"
+        ? `The approval was for an earlier version. ${who} approves again to cover the latest changes.`
+        : `Approval is stale: the change or its labels moved after \`${label}\` was applied. ${who} removes and re-applies the label.`;
+  }
+}
+
+function fileRows(result: RiskResult): string[] {
+  return [...result.files]
     .sort((a, b) => b.tier - a.tier || a.path.localeCompare(b.path))
     .map((f) => {
       const why = f.rules.length ? f.rules.map((r) => md(r.reason) + (r.ref ? ` (${md(r.ref)})` : "")).join("; ") : "default tier";
       return `| ${f.tier} | \`${md(f.path)}\` | ${why} |`;
     });
+}
+
+export function riskSummary(result: RiskResult, approval: Approval, config: PipelineConfig): string {
   return [
     `### Risk: tier ${result.tier} (${TIER_NAMES[result.tier]})`,
     "",
-    verdict[approval] + (config.risk.enforce ? "" : " (report only: `risk.enforce` is false)"),
+    approvalLine(approval, config) + (config.risk.enforce ? "" : " (report only: `risk.enforce` is false)"),
     "",
     "| Tier | File | Why |",
     "|---|---|---|",
-    ...rows,
+    ...fileRows(result),
     "",
   ].join("\n");
+}
+
+export const RISK_COMMENT_MARKER = "<!-- pipeline-kit:risk -->";
+
+/** The PR comment an approver reads, often on a phone: plain English first, detail folded. */
+export function riskComment(result: RiskResult, approval: Approval, config: PipelineConfig): string {
+  const risky = result.files.filter((f) => f.tier >= config.risk.approval.fromTier);
+  const reasons = [...new Set(risky.flatMap((f) => f.rules.map((r) => r.reason)))];
+  const icon = approval.status === "approved" ? "✅" : approval.status === "not-needed" ? "ℹ️" : "⏳";
+  const lines = [
+    `### ${icon} Risk check: tier ${result.tier} (${TIER_NAMES[result.tier]})`,
+    "",
+    approvalLine(approval, config),
+    "",
+  ];
+  if (risky.length) {
+    lines.push("**Why it needs approval:** it changes " + reasons.map((r) => r.charAt(0).toLowerCase() + r.slice(1)).join("; ") + ".", "");
+  }
+  if (approval.status === "needed" || approval.status === "stale") {
+    lines.push(
+      "**Before approving:** read the agent's plain-English summary in the description above, and the files below.",
+      config.risk.approval.method === "review"
+        ? "**To approve:** Files changed → Review changes → Approve (or Approve in the GitHub mobile app). It covers this exact version; any later commit needs approving again."
+        : `**To approve:** add the \`${config.risk.approval.label}\` label.`,
+      "",
+    );
+  }
+  lines.push("<details><summary>Every changed file and its tier</summary>", "", "| Tier | File | Why |", "|---|---|---|", ...fileRows(result), "", "</details>", "");
+  return lines.join("\n");
+}
+
+/** Commit status description, at most 140 characters. */
+export function riskStatusDescription(tier: Tier, approval: Approval, config: PipelineConfig): string {
+  const head = `Tier ${tier} (${TIER_NAMES[tier]})`;
+  const approvers = config.risk.approval.approvers.map((a) => `@${a}`).join(" or ") || "an approver";
+  switch (approval.status) {
+    case "not-needed":
+      return `${head}: no approval needed`;
+    case "approved":
+      return `${head}: approved by @${approval.by}`;
+    case "needed":
+      return `${head}: waiting for ${approvers}`;
+    case "stale":
+      return `${head}: new changes since approval; waiting for ${approvers}`;
+  }
 }
 
 export function writeSummary(markdown: string): void {
