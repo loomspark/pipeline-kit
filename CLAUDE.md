@@ -19,7 +19,7 @@ These are not defaults to trade off.
 4. **Never print what a rule matched.** Hard-rule findings report rule, file and line only. Matched text can be a secret or someone's personal data, and CI logs are not a safe place for either.
 5. **Fail closed.** When a check can't tell whether something is safe (unknown config key, approval it can't tie to the current head), it fails.
 6. **No production credentials in the pipeline.** Agents and CI get staging or test credentials only.
-7. **Agents never approve.** An agent must not apply the approval label, approve a PR, or edit risk rules to lower its own change's tier. Changes to `.pipeline/**` are always tier 2. Agents push and open PRs as the agent identity (`npm run kit -- agent git|gh ...`, `docs/agent-identity.md`), never as a person, once it's set up.
+7. **Agents never approve.** An agent must not apply the approval label, approve a PR, or edit risk rules to lower its own change's tier. Changes to `.pipeline/**` are always tier 2. Agents push and open PRs as the agent identity (`node <kit>/src/cli.ts agent git|gh ...`, `docs/agent-identity.md`), never as a person, and merge only with the guarded `agent merge <pr>` (ADR 0003).
 
 ## Stack and commands
 
@@ -27,7 +27,7 @@ TypeScript run directly by Node's type stripping (Node >= 22.18; CI uses 24), no
 
 - `npm test`: Node test runner over `test/**/*.test.ts`
 - `npm run typecheck`
-- `npm run kit -- <command>`: run the CLI locally (`validate`, `plan`, `hard-rules`, `risk`, `agent git|gh`)
+- `npm run kit -- <command>`: run the CLI locally (`validate`, `plan`, `hard-rules`, `risk`, `agent git|gh`, `agent merge`)
 
 ## Releases
 

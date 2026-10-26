@@ -71,6 +71,24 @@ node <kit>/src/cli.ts agent gh pr create --title "..." --body "..."
 node <kit>/src/cli.ts agent git commit -m "..."
 ```
 
+## Merging
+
+Agents merge only with the guarded command ([ADR 0003](adr/0003-guarded-merge.md)):
+
+```bash
+node <kit>/src/cli.ts agent merge <pr-number>
+```
+
+It merges as the agent only if the PR is open, not a draft and conflict-free; every check on the head commit finished without failing; and every status is green, including `pipeline-kit/risk` (low risk, or approved by you for this exact commit). The merge is pinned to that commit. Otherwise it lists what's missing and changes nothing. `agent gh pr merge` is refused.
+
+To let agents run it without prompting, the owner adds one rule to `~/.claude/settings.json` under `permissions.allow`, using the kit's absolute path:
+
+```json
+"Bash(node /Users/<you>/pipeline-kit/src/cli.ts agent merge:*)"
+```
+
+## Tokens and credentials
+
 Each call mints a one-hour token scoped to that one repo and runs the command with it. Commits are authored as `<app-slug>[bot]`. The token goes to `gh` as `GH_TOKEN` and to `git` as an auth header through environment variables, never in arguments or output. Stored credentials (the macOS keychain, your `gh` login) are switched off for that command, so it can't fall back to acting as you.
 
 ## Limits

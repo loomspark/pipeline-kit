@@ -21,9 +21,9 @@ verify:
 
 risk:
   approval:
-    # Switches to method: review once the agent identity opens the kit's PRs
-    # (the owner can't review PRs opened under their own account).
-    method: label
+    # The owner approves risky kit changes with a GitHub review of the exact version
+    # (ADR 0002). Agents open PRs as loomspark-agent[bot]; their reviews never count.
+    method: review
     approvers: [loomspark]
   rules:
     # What every project's pipeline runs, or what decides whether a change escalates.
@@ -34,7 +34,7 @@ risk:
       paths: ["schema/**"]
       reason: The config contract every project depends on
     - tier: 2
-      paths: ["src/risk.ts", "src/hard-rules.ts", "src/presets.ts", "src/glob.ts", "src/diff.ts", "src/config.ts", "src/agent.ts", "src/github.ts", "src/cli.ts"]
+      paths: ["src/risk.ts", "src/hard-rules.ts", "src/presets.ts", "src/glob.ts", "src/diff.ts", "src/config.ts", "src/agent.ts", "src/github.ts", "src/cli.ts", "src/merge.ts"]
       reason: Enforcement and identity logic, where a bug weakens checks for every project
     - tier: 2
       paths: [".pipeline/**", "CLAUDE.md", "package.json", "package-lock.json"]
