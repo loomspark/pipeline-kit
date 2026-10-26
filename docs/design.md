@@ -132,10 +132,11 @@ Agents merge only with `pipeline-kit agent merge <pr>` (ADR 0003). It merges as 
 | 0 | Kit | Repo, CLAUDE.md, this doc, ADR 0001, config schema | Done 22 Oct 2026 |
 | 1 | 0 and 2 | Reusable CI (`verify`), changed-path risk check with label approval, hard rules with `secrets` preset; Ward Intel wired on a branch | Done 22 Oct 2026 |
 | 2 | 2 | Agent identity (GitHub App) and `agent git/gh`; guarded `agent merge` (ADR 0003); approval by GitHub review on the exact commit; risk as a commit status; review requests and a plain-English PR comment so approvals reach the owner's phone (ADR 0002). Released as `v1`. Still to do: Dependabot patch-bump exception (K6) | Built 22 Oct 2026; owner creates the app |
+| 2a | Kit | **[Proposed]** (owner, 2026-10-26) **A guide for people, with pictures.** One page, in the README or on a GitHub Pages site, showing how a change travels: an agent opens a PR, the checks run, the risk tier is set, the owner reviews (tier 2), then the guarded merge. It says what each check means, what the owner does at each step and what happens when something fails, in plain English with a diagram. Today this lives only in ADRs, code and the owner's head. Kept up to date with the design doc. | |
 | 3 | 1 | **[Proposed]** Preview URL resolver (`previews`), Playwright conventions and helpers, fixed journey suite run against previews; secret exposure per stage | |
 | 4 | 1 | **[Proposed]** AI exploratory tester (layer 2) through the model gateway; outputs new Playwright tests | |
 | 5 | 3 | **[Proposed]** Intake issue form, triage, build and reviewer agents (coding agent as a swappable CLI step) | |
-| 6 | 1 and 4 | **[Proposed]** Read-only production smoke checks, tier-0 auto-ship per project, weekly digest | |
+| 6 | 1 and 4 | **[Proposed]** Read-only production smoke checks, tier-0 auto-ship per project, weekly digest; a GitHub-side merge job so green or approved PRs merge with no agent session running (ADR 0003) | |
 
 What Ward Intel can't prove (human-facing sign-up, invite emails, per-role permissions) needs extra kit work for Made Impact in milestone 3 (test inbox, synthetic personas, role journeys).
 
@@ -146,3 +147,4 @@ What Ward Intel can't prove (human-facing sign-up, invite emails, per-role permi
 | 2026-10-22 | Milestones 0 and 1: repo, schema v1, CLI, reusable CI workflow, composite action, `secrets` preset |
 | 2026-10-22 | Milestone 2 (`v1`): agent identity, review approvals with `approvers`, `pipeline-kit/risk` status, review requests, risk PR comment (ADR 0002) |
 | 2026-10-26 | Guarded `agent merge` and refusal of raw agent merges (ADR 0003); the kit's own PRs approved by review |
+| 2026-10-26 | Milestones: added 2a, a guide for people with a diagram of the pipeline (owner); milestone 6 names the unattended merge job from ADR 0003 |
