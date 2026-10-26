@@ -63,12 +63,12 @@ Install the **GitHub** mobile app and sign in. Under **Settings → Notification
 
 ## How agents use it
 
-From any checkout of a repo the app is installed on:
+From inside a checkout of a repo the app is installed on (call the CLI directly: `npm run --prefix` would run git in the kit's own folder):
 
 ```bash
-npm run --prefix <kit> kit -- agent git push -u origin my-branch
-npm run --prefix <kit> kit -- agent gh pr create --title "..." --body "..."
-npm run --prefix <kit> kit -- agent git commit -m "..."
+node <kit>/src/cli.ts agent git push -u origin my-branch
+node <kit>/src/cli.ts agent gh pr create --title "..." --body "..."
+node <kit>/src/cli.ts agent git commit -m "..."
 ```
 
 Each call mints a one-hour token scoped to that one repo and runs the command with it. Commits are authored as `<app-slug>[bot]`. The token goes to `gh` as `GH_TOKEN` and to `git` as an auth header through environment variables, never in arguments or output. Stored credentials (the macOS keychain, your `gh` login) are switched off for that command, so it can't fall back to acting as you.
