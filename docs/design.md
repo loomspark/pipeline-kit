@@ -105,6 +105,8 @@ Outputs: `tier` (0 to 2), `approval` (`not-needed`, `approved`, `needed`, `stale
 
 ### Agent identity and merging
 
+How it looks to the owner, in plain English: [`how-it-works.md`](how-it-works.md). Keep it in step with this section.
+
 Agents act on GitHub as a GitHub App, never as a person: `pipeline-kit agent git|gh <args>` runs the command with a one-hour token for the current repo and commits as `<app-slug>[bot]`. The app has no `workflows` permission, so CI changes need a person. Setup and limits: [`agent-identity.md`](agent-identity.md).
 
 Agents merge only with `pipeline-kit agent merge <pr>` (ADR 0003). It merges as the agent when the PR is open, not a draft and conflict-free; every check run on the head has finished without failing (judged by the latest run that ran); and every status is green, including `pipeline-kit/risk`. The merge is pinned to that head commit. Otherwise it refuses and lists why. `agent gh pr merge` is refused. The owner's Claude Code settings allow only this command, so low-risk changes merge as soon as they're green, and risky ones as soon as the owner approves.
@@ -132,7 +134,7 @@ Agents merge only with `pipeline-kit agent merge <pr>` (ADR 0003). It merges as 
 | 0 | Kit | Repo, CLAUDE.md, this doc, ADR 0001, config schema | Done 22 Oct 2026 |
 | 1 | 0 and 2 | Reusable CI (`verify`), changed-path risk check with label approval, hard rules with `secrets` preset; Ward Intel wired on a branch | Done 22 Oct 2026 |
 | 2 | 2 | Agent identity (GitHub App) and `agent git/gh`; guarded `agent merge` (ADR 0003); approval by GitHub review on the exact commit; risk as a commit status; review requests and a plain-English PR comment so approvals reach the owner's phone (ADR 0002). Released as `v1`. Still to do: Dependabot patch-bump exception (K6) | Built 22 Oct 2026; owner creates the app |
-| 2a | Kit | **[Proposed]** (owner, 2026-10-26) **A guide for people, with pictures.** One page, in the README or on a GitHub Pages site, showing how a change travels: an agent opens a PR, the checks run, the risk tier is set, the owner reviews (tier 2), then the guarded merge. It says what each check means, what the owner does at each step and what happens when something fails, in plain English with a diagram. Today this lives only in ADRs, code and the owner's head. Kept up to date with the design doc. | |
+| 2a | Kit | **A guide for people, with pictures.** [`how-it-works.md`](how-it-works.md): one plain-English page with Mermaid diagrams (GitHub renders them, including in the mobile app) showing how a change travels: an agent opens a PR, the checks run, the risk tier is set, the owner reviews (tier 2), then the guarded merge. It says what each check means, what the owner does at each step, what agents can't do, what happens when something fails or is pushed after approval, and the current limits. Linked from the top of the README. Kept up to date with this doc. GitHub Pages can come later. | Built 26 Oct 2026 |
 | 3 | 1 | **[Proposed]** Preview URL resolver (`previews`), Playwright conventions and helpers, fixed journey suite run against previews; secret exposure per stage | |
 | 4 | 1 | **[Proposed]** AI exploratory tester (layer 2) through the model gateway; outputs new Playwright tests | |
 | 5 | 3 | **[Proposed]** Intake issue form, triage, build and reviewer agents (coding agent as a swappable CLI step) | |
@@ -148,3 +150,4 @@ What Ward Intel can't prove (human-facing sign-up, invite emails, per-role permi
 | 2026-10-22 | Milestone 2 (`v1`): agent identity, review approvals with `approvers`, `pipeline-kit/risk` status, review requests, risk PR comment (ADR 0002) |
 | 2026-10-26 | Guarded `agent merge` and refusal of raw agent merges (ADR 0003); the kit's own PRs approved by review |
 | 2026-10-26 | Milestones: added 2a, a guide for people with a diagram of the pipeline (owner); milestone 6 names the unattended merge job from ADR 0003 |
+| 2026-10-26 | Milestone 2a: [`how-it-works.md`](how-it-works.md), a plain-English guide with diagrams, linked from the README |

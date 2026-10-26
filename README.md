@@ -1,5 +1,7 @@
 # Loomspark pipeline kit
 
+**New here? Start with [How a change gets merged](docs/how-it-works.md):** a plain-English guide with a diagram, written for reading on a phone.
+
 A reusable, vendor-neutral delivery pipeline for Loomspark projects. Each project keeps a small config file in its own repo; the kit provides the workflows, rules engine and (later) agent prompts and test helpers.
 
 **Status:** milestone 2 (`v1`). Reusable CI with three checks: `verify` (the project's own commands), `hard-rules` (things that must never land) and `risk` (changed-path tiers; risky changes need a listed person's GitHub review, requested automatically so it reaches their phone). Agents act as their own GitHub App identity ([setup](docs/agent-identity.md)). First user: Ward Intel.
