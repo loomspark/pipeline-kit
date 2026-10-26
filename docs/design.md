@@ -103,9 +103,11 @@ Outputs: `tier` (0 to 2), `approval` (`not-needed`, `approved`, `needed`, `stale
 
 **Limits today.** GitHub Free can't make checks or statuses *required* on private repos, so a failing risk status informs people and stops agents but doesn't physically block a merge (K4). On the owner's laptop, agent sessions could still reach the owner's own login (K7); the approval itself doesn't depend on that, because it's read from GitHub's record of who reviewed.
 
-### Agent identity
+### Agent identity and merging
 
 Agents act on GitHub as a GitHub App, never as a person: `pipeline-kit agent git|gh <args>` runs the command with a one-hour token for the current repo and commits as `<app-slug>[bot]`. The app has no `workflows` permission, so CI changes need a person. Setup and limits: [`agent-identity.md`](agent-identity.md).
+
+Agents merge only with `pipeline-kit agent merge <pr>` (ADR 0003). It merges as the agent when the PR is open, not a draft and conflict-free; every check run on the head has finished without failing (judged by the latest run that ran); and every status is green, including `pipeline-kit/risk`. The merge is pinned to that head commit. Otherwise it refuses and lists why. `agent gh pr merge` is refused. The owner's Claude Code settings allow only this command, so low-risk changes merge as soon as they're green, and risky ones as soon as the owner approves.
 
 ## 5. Adopting the kit
 
@@ -129,7 +131,7 @@ Agents act on GitHub as a GitHub App, never as a person: `pipeline-kit agent git
 |---|---|---|---|
 | 0 | Kit | Repo, CLAUDE.md, this doc, ADR 0001, config schema | Done 22 Oct 2026 |
 | 1 | 0 and 2 | Reusable CI (`verify`), changed-path risk check with label approval, hard rules with `secrets` preset; Ward Intel wired on a branch | Done 22 Oct 2026 |
-| 2 | 2 | Agent identity (GitHub App) and `agent git/gh`; approval by GitHub review on the exact commit; risk as a commit status; review requests and a plain-English PR comment so approvals reach the owner's phone (ADR 0002). Released as `v1`. Still to do: Dependabot patch-bump exception (K6) | Built 22 Oct 2026; owner creates the app |
+| 2 | 2 | Agent identity (GitHub App) and `agent git/gh`; guarded `agent merge` (ADR 0003); approval by GitHub review on the exact commit; risk as a commit status; review requests and a plain-English PR comment so approvals reach the owner's phone (ADR 0002). Released as `v1`. Still to do: Dependabot patch-bump exception (K6) | Built 22 Oct 2026; owner creates the app |
 | 3 | 1 | **[Proposed]** Preview URL resolver (`previews`), Playwright conventions and helpers, fixed journey suite run against previews; secret exposure per stage | |
 | 4 | 1 | **[Proposed]** AI exploratory tester (layer 2) through the model gateway; outputs new Playwright tests | |
 | 5 | 3 | **[Proposed]** Intake issue form, triage, build and reviewer agents (coding agent as a swappable CLI step) | |
@@ -143,3 +145,4 @@ What Ward Intel can't prove (human-facing sign-up, invite emails, per-role permi
 |---|---|
 | 2026-10-22 | Milestones 0 and 1: repo, schema v1, CLI, reusable CI workflow, composite action, `secrets` preset |
 | 2026-10-22 | Milestone 2 (`v1`): agent identity, review approvals with `approvers`, `pipeline-kit/risk` status, review requests, risk PR comment (ADR 0002) |
+| 2026-10-26 | Guarded `agent merge` and refusal of raw agent merges (ADR 0003); the kit's own PRs approved by review |

@@ -3,7 +3,8 @@ import { parseArgs } from "node:util";
 import { allHardRules, ConfigError, DEFAULT_CONFIG_PATH, loadConfig } from "./config.ts";
 import { readChange, resolveSha } from "./diff.ts";
 import { checkHardRules } from "./hard-rules.ts";
-import { runAsAgent } from "./agent.ts";
+import { agentGitHub, runAsAgent } from "./agent.ts";
+import { guardedMerge, RISK_STATUS_CONTEXT } from "./merge.ts";
 import { GitHub } from "./github.ts";
 import { annotation, hardRulesSummary, RISK_COMMENT_MARKER, riskComment, riskStatusDescription, riskSummary, setOutput, writeSummary } from "./report.ts";
 import { approvalState, classify } from "./risk.ts";
@@ -17,6 +18,8 @@ Commands:
   hard-rules               Check a diff against the hard rules
   risk                     Classify a diff by changed paths and check approval
   agent git|gh <args...>   Run git or gh as the agent identity (docs/agent-identity.md)
+  agent merge <pr>         Merge a PR as the agent, only if every check and status is
+                           green, including pipeline-kit/risk (docs/agent-identity.md)
 
 Options:
   --config <path>          Project config (default ${DEFAULT_CONFIG_PATH})
@@ -29,15 +32,26 @@ Options:
 risk reads the event from KIT_EVENT_ACTION, KIT_EVENT_LABEL, KIT_EVENT_ACTOR,
 KIT_PR_LABELS (JSON array) and KIT_PR_AUTHOR. Without them it reports approval as needed.`;
 
-export const RISK_STATUS_CONTEXT = "pipeline-kit/risk";
 
 const ZERO_SHA = /^0+$/;
 
 async function main(argv: string[]): Promise<number> {
+  if (argv[0] === "agent" && argv[1] === "merge") {
+    const number = Number(argv[2]);
+    if (!Number.isInteger(number) || number <= 0 || argv.length !== 3) {
+      console.error("Usage: pipeline-kit agent merge <pr-number>");
+      return 2;
+    }
+    const result = await guardedMerge(await agentGitHub(), number);
+    for (const p of result.decision.passed) console.log(`  ok   ${p}`);
+    for (const r of result.decision.reasons) console.log(`  no   ${r}`);
+    console.log(result.message);
+    return result.merged ? 0 : 1;
+  }
   if (argv[0] === "agent") {
     const tool = argv[1];
     if (tool !== "git" && tool !== "gh") {
-      console.error("Usage: pipeline-kit agent git|gh <args...>");
+      console.error("Usage: pipeline-kit agent git|gh <args...> | agent merge <pr-number>");
       return 2;
     }
     return runAsAgent(tool, argv.slice(2));

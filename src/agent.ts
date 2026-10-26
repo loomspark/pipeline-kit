@@ -99,8 +99,19 @@ export function agentEnv(session: AgentSession, base: NodeJS.ProcessEnv = proces
   };
 }
 
+/** API client acting as the agent on the current checkout's repo. */
+export async function agentGitHub(): Promise<GitHub> {
+  const repo = originRepo();
+  const session = await agentSession(repo, loadAgentConfig());
+  return new GitHub({ token: session.token, repo });
+}
+
 /** Run git or gh as the agent identity; returns the exit code. */
 export async function runAsAgent(tool: "git" | "gh", args: string[]): Promise<number> {
+  if (tool === "gh" && args[0] === "pr" && args[1] === "merge") {
+    console.error("Agents merge with `pipeline-kit agent merge <pr>`, which checks every check and the risk status first.");
+    return 2;
+  }
   const session = await agentSession(originRepo(), loadAgentConfig());
   const r = spawnSync(tool, args, { stdio: "inherit", env: agentEnv(session) });
   return r.status ?? 1;
