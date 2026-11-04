@@ -34,7 +34,7 @@ risk:
       paths: ["schema/**"]
       reason: The config contract every project depends on
     - tier: 2
-      paths: ["src/risk.ts", "src/hard-rules.ts", "src/presets.ts", "src/glob.ts", "src/diff.ts", "src/config.ts", "src/agent.ts", "src/github.ts", "src/cli.ts", "src/merge.ts"]
+      paths: ["src/risk.ts", "src/hard-rules.ts", "src/presets.ts", "src/glob.ts", "src/diff.ts", "src/config.ts", "src/agent.ts", "src/github.ts", "src/cli.ts", "src/merge.ts", "src/preview.ts", "src/journeys.ts"]
       reason: Enforcement and identity logic, where a bug weakens checks for every project
     - tier: 2
       paths: [".pipeline/**", "CLAUDE.md", "package.json", "package-lock.json"]
