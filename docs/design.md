@@ -33,7 +33,7 @@ loomspark/pipeline-kit                    project repo (e.g. loomspark/wardintel
 
 - **Reusable workflow** (`.github/workflows/ci.yml`): the jobs. Called by projects at `@v0`.
 - **Composite action** (`action.yml`): runs one CLI command in the caller's checkout. The workflow uses it as `loomspark/pipeline-kit@v0`. This is how the kit's code reaches a private caller: GitHub fetches the action itself, so no cross-repo token is needed (ADR 0001).
-- **CLI** (`src/cli.ts`): `validate`, `plan`, `hard-rules`, `risk`. Runs the same locally and in CI.
+- **CLI** (`src/cli.ts`): `validate`, `plan`, `hard-rules`, `risk`, `preview`, `journeys`. Runs the same locally and in CI.
 - **Schema** (`schema/pipeline-config.schema.json`): the config contract, validated on every run.
 
 ## 3. Project config
@@ -47,15 +47,15 @@ loomspark/pipeline-kit                    project repo (e.g. loomspark/wardintel
 | `verify` | 1 | `nodeVersionFile` (default `.nvmrc`), `install` (default `npm ci`), `commands`: named shell commands every change must pass |
 | `risk` | 1 | `rules` (tier, paths, reason, ref), `defaultTier` (default 1), `approval` (`label` default `risk:approved`, `fromTier` default 2), `enforce` (default true) |
 | `hardRules` | 1 | `presets` (kit rule sets, currently `secrets`) and project `rules` |
-| `previews` | reserved | `source: deployment` (read the GitHub deployment status a host posts, filtered by `environment`), `command`, or `none` |
-| `journeys` | reserved | Key journeys for the fixed end-to-end suite |
+| `previews` | 3 | `source: deployment` (read the GitHub deployment status a host posts for the head commit, filtered by `environment`), `command` (prints the URL), or `none`; `timeoutMinutes` (default 10); `headers`: HTTP header to secret **name**, sent to the preview's origin only |
+| `journeys` | 3 | Key journeys run against every PR's preview: `id`, `description`, `spec` (a Playwright file in the project) |
 | `testData` | reserved | Commands to reset and seed fictional test data |
 | `models` | reserved | `gatewayUrl` (any OpenAI-compatible gateway) and a model id per agent role |
 | `secrets` | 0 (names), later (use) | Per stage, the **names** of secrets the stage may use. Values never appear in config |
 
 Reserved sections are validated now so projects can declare them early; nothing consumes them yet.
 
-**Secrets.** Names must be `UPPER_SNAKE_CASE`. The kit rejects a config file containing anything that matches the credential patterns, reporting the line number only. When stages that need secrets arrive (milestone 3+) **[Proposed]**: the stage's workflow receives the caller's secrets and the kit exports only the names listed for that stage into the job, so the config is the one place that grants a stage access to a secret, and granting one is a `.pipeline/**` change, which is tier 2.
+**Secrets.** Names must be `UPPER_SNAKE_CASE`. The kit rejects a config file containing anything that matches the credential patterns, reporting the line number only. A stage's workflow receives the caller's secrets (`secrets: inherit`) and the kit passes on only the names listed for that stage, so the config is the one place that grants a stage access to a secret, and granting one is a `.pipeline/**` change, which is tier 2. In use from milestone 3 by `journeys` (ADR 0004); a header in `previews.headers` must name a secret listed under `secrets.journeys`.
 
 ### Globs
 
@@ -111,6 +111,28 @@ Agents act on GitHub as a GitHub App, never as a person: `pipeline-kit agent git
 
 Agents merge only with `pipeline-kit agent merge <pr>` (ADR 0003). It merges as the agent when the PR is open, not a draft and conflict-free; every check run on the head has finished without failing (judged by the latest run that ran); and every status is green, including `pipeline-kit/risk`. The merge is pinned to that head commit. Otherwise it refuses and lists why. `agent gh pr merge` is refused. The owner's Claude Code settings allow only this command, so low-risk changes merge as soon as they're green, and risky ones as soon as the owner approves.
 
+<a id="journeys"></a>
+### journeys (milestone 3, ADR 0004)
+
+Runs on PRs only, as the `pipeline / journeys` check. Passes with nothing to do when the config lists no journeys.
+
+1. **Find the preview.** `preview` looks up the deployment for the PR's head commit in `previews.environment` and waits until its latest status is `success` with a URL. A `failure` or `error` status fails at once; nothing ready within `previews.timeoutMinutes` fails too. It never skips while journeys are listed.
+2. **Install** the project (its own Node and `install`, as in verify) and Chromium (`npx playwright install --with-deps chromium`, using the project's Playwright version).
+3. **Run** `npx --no-install playwright test <specs>` in the project, in config order. A listed journey with no `spec` fails the run.
+
+**Contract with the project's Playwright config:**
+
+- `PIPELINE_PREVIEW_URL`: the base URL. Locally, without it, a project can fall back to its own dev or start server.
+- `PIPELINE_PREVIEW_HEADERS`: JSON of headers for the preview's origin only. Add them with a route on that origin, not `extraHTTPHeaders`, which would also send them to any third-party origin a page loads.
+- Each secret listed under `secrets.journeys` is also set by name. Nothing else secret reaches the tests: the job's token and the other stages' secrets are removed.
+- Keep traces, videos, screenshots and HAR files off while headers carry secrets. GitHub masks secrets in logs, not in artifacts; the kit uploads none.
+
+Fictional data only, as everywhere in the pipeline: journeys use the project's sample or seeded test data, never real content, and submit no real forms or emails.
+
+Run locally from the project: `node <kit>/src/cli.ts preview --head <sha>` prints the URL (as the agent identity when `GITHUB_TOKEN` isn't set). Then run Playwright with `PIPELINE_PREVIEW_URL` set, or run against a local server.
+
+**Callers** grant `deployments: read` and pass `secrets: inherit` (see README). Without them the job can't find the preview, or can't reach a protected one, and fails.
+
 ## 5. Adopting the kit
 
 1. Add `.pipeline/config.yml` (start from `examples/pipeline.config.yml`). Put the config, workflows, migrations, auth, payments, personal-data code, outbound email, new third-party services, security headers, lockfiles and anything legal at tier 2.
@@ -135,7 +157,7 @@ Agents merge only with `pipeline-kit agent merge <pr>` (ADR 0003). It merges as 
 | 1 | 0 and 2 | Reusable CI (`verify`), changed-path risk check with label approval, hard rules with `secrets` preset; Ward Intel wired on a branch | Done 22 Oct 2026 |
 | 2 | 2 | Agent identity (GitHub App) and `agent git/gh`; guarded `agent merge` (ADR 0003); approval by GitHub review on the exact commit; risk as a commit status; review requests and a plain-English PR comment so approvals reach the owner's phone (ADR 0002). Released as `v1`. Still to do: Dependabot patch-bump exception (K6) | Built 22 Oct 2026; owner creates the app |
 | 2a | Kit | **A guide for people, with pictures.** [`how-it-works.md`](how-it-works.md): one plain-English page with Mermaid diagrams (GitHub renders them, including in the mobile app) showing how a change travels: an agent opens a PR, the checks run, the risk tier is set, the owner reviews (tier 2), then the guarded merge. It says what each check means, what the owner does at each step, what agents can't do, what happens when something fails or is pushed after approval, and the current limits. Linked from the top of the README. Kept up to date with this doc. GitHub Pages can come later. | Built 26 Oct 2026 |
-| 3 | 1 | **[Proposed]** Preview URL resolver (`previews`), Playwright conventions and helpers, fixed journey suite run against previews; secret exposure per stage | |
+| 3 | 1 | Preview URL resolver (`previews`), Playwright conventions (the `journeys` contract), fixed journey suite run against previews as the `journeys` check; secret exposure per stage (ADR 0004). Still to do: Made Impact's test inbox, synthetic personas and role journeys | Built 4 Nov 2026 (CLI and action); the `journeys` workflow job is the owner's to push, then release |
 | 4 | 1 | **[Proposed]** AI exploratory tester (layer 2) through the model gateway; outputs new Playwright tests | |
 | 5 | 3 | **[Proposed]** Intake issue form, triage, build and reviewer agents (coding agent as a swappable CLI step) | |
 | 6 | 1 and 4 | **[Proposed]** Read-only production smoke checks, tier-0 auto-ship per project, weekly digest; a GitHub-side merge job so green or approved PRs merge with no agent session running (ADR 0003) | |
@@ -151,3 +173,4 @@ What Ward Intel can't prove (human-facing sign-up, invite emails, per-role permi
 | 2026-10-26 | Guarded `agent merge` and refusal of raw agent merges (ADR 0003); the kit's own PRs approved by review |
 | 2026-10-26 | Milestones: added 2a, a guide for people with a diagram of the pipeline (owner); milestone 6 names the unattended merge job from ADR 0003 |
 | 2026-10-26 | Milestone 2a: [`how-it-works.md`](how-it-works.md), a plain-English guide with diagrams, linked from the README |
+| 2026-11-04 | Milestone 3: `preview` and `journeys` commands, `previews.timeoutMinutes` and `previews.headers`, per-stage secrets for journeys (ADR 0004). Schema additions only; `version` stays 1 |

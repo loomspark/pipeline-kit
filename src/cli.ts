@@ -8,6 +8,8 @@ import { guardedMerge, RISK_STATUS_CONTEXT } from "./merge.ts";
 import { GitHub } from "./github.ts";
 import { annotation, hardRulesSummary, RISK_COMMENT_MARKER, riskComment, riskStatusDescription, riskSummary, setOutput, writeSummary } from "./report.ts";
 import { approvalState, classify } from "./risk.ts";
+import { PreviewError, resolvePreview } from "./preview.ts";
+import { JourneyError, journeyEnv, journeySpecs, journeysSummary, previewHeaders, runJourneys, stageSecrets } from "./journeys.ts";
 import type { Review } from "./risk.ts";
 
 const USAGE = `pipeline-kit <command> [options]
@@ -17,6 +19,10 @@ Commands:
   plan                     Print the verify plan (install, commands) as JSON
   hard-rules               Check a diff against the hard rules
   risk                     Classify a diff by changed paths and check approval
+  preview                  Wait for the preview of --head and print its URL (outputs url,
+                           enabled=false when the project lists no journeys)
+  journeys --url <url>     Run the project's journeys (Playwright) against a preview, with
+                           only the secrets listed under secrets.journeys (from KIT_SECRETS)
   agent git|gh <args...>   Run git or gh as the agent identity (docs/agent-identity.md)
   agent merge <pr>         Merge a PR as the agent, only if every check and status is
                            green, including pipeline-kit/risk (docs/agent-identity.md)
@@ -63,6 +69,7 @@ async function main(argv: string[]): Promise<number> {
       config: { type: "string", default: DEFAULT_CONFIG_PATH },
       base: { type: "string" },
       head: { type: "string" },
+      url: { type: "string" },
       help: { type: "boolean", short: "h" },
       "report-status": { type: "boolean" },
     },
@@ -176,6 +183,45 @@ async function main(argv: string[]): Promise<number> {
       return blocked ? 1 : 0;
     }
 
+    case "preview": {
+      if (!config.journeys?.length) {
+        setOutput("enabled", "false");
+        console.log(annotation("notice", "No journeys in the project config; nothing to run against a preview.", { title: "journeys" }));
+        return 0;
+      }
+      const env = process.env;
+      const sha = resolveSha(head);
+      // In CI the job's token; locally (no GITHUB_TOKEN) the agent identity, never a person.
+      const github = async () =>
+        env.GITHUB_TOKEN && env.GITHUB_REPOSITORY
+          ? new GitHub({ token: env.GITHUB_TOKEN, repo: env.GITHUB_REPOSITORY, api: env.GITHUB_API_URL })
+          : agentGitHub();
+      const url = await resolvePreview(config, sha, github, { log: (l) => console.log(l) });
+      if (!url) throw new PreviewError("Journeys are listed but the project has no previews.");
+      setOutput("enabled", "true");
+      setOutput("url", url);
+      console.log(url);
+      return 0;
+    }
+
+    case "journeys": {
+      const url = values.url;
+      if (!url || !/^https?:\/\/\S+$/.test(url)) throw new JourneyError("journeys needs --url <preview URL> (from the preview command).");
+      const specs = journeySpecs(config);
+      if (!specs.length) {
+        console.log(annotation("notice", "No journeys in the project config.", { title: "journeys" }));
+        return 0;
+      }
+      const secrets = stageSecrets(config, process.env.KIT_SECRETS);
+      const env = journeyEnv(url, previewHeaders(config, secrets), secrets);
+      console.log(`Running ${specs.length} journey spec(s) against ${url}`);
+      const code = runJourneys(specs, env);
+      const summary = journeysSummary(config, url, code);
+      writeSummary(summary);
+      if (code !== 0) console.log(annotation("error", "A journey failed against the preview.", { title: "journeys" }));
+      return code === 0 ? 0 : 1;
+    }
+
     default:
       console.error(`Unknown command: ${command}\n\n${USAGE}`);
       return 2;
@@ -185,7 +231,11 @@ async function main(argv: string[]): Promise<number> {
 try {
   process.exitCode = await main(process.argv.slice(2));
 } catch (e) {
-  if (e instanceof ConfigError) {
+  if (e instanceof PreviewError || e instanceof JourneyError) {
+    console.log(annotation("error", e.message, { title: e instanceof PreviewError ? "preview" : "journeys" }));
+    console.error(e.message);
+    process.exitCode = 1;
+  } else if (e instanceof ConfigError) {
     console.log(annotation("error", e.message, { title: "pipeline config" }));
     console.error(e.message);
     process.exitCode = 1;

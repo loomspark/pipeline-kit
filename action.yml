@@ -1,8 +1,8 @@
 name: Loomspark pipeline kit
-description: Runs a pipeline-kit command (validate, plan, hard-rules, risk) against the calling project's checkout.
+description: Runs a pipeline-kit command (validate, plan, hard-rules, risk, preview, journeys) against the calling project's checkout.
 inputs:
   command:
-    description: validate | plan | hard-rules | risk
+    description: validate | plan | hard-rules | risk | preview | journeys
     required: true
   config:
     description: Path to the project config.
@@ -17,8 +17,14 @@ inputs:
     description: risk only. "true" reports through the pipeline-kit/risk commit status, a review request and a PR comment, and the step itself passes; the status is the gate.
     default: "false"
   token:
-    description: Token for GitHub API calls (risk with report-status). Needs pull-requests write and statuses write.
+    description: Token for GitHub API calls (risk with report-status; preview, which needs deployments read). Needs pull-requests write and statuses write for risk.
     default: ${{ github.token }}
+  url:
+    description: journeys only. The preview URL, from the preview command.
+    default: ""
+  secrets:
+    description: journeys only. JSON of the secrets the workflow received (toJSON(secrets)). The kit passes on only those listed under secrets.journeys.
+    default: "{}"
 outputs:
   node-version-file:
     description: plan only
@@ -41,6 +47,12 @@ outputs:
   approved-by:
     description: risk only; the approver's login, read from GitHub's record
     value: ${{ steps.run.outputs.approved-by }}
+  enabled:
+    description: preview only; "false" when the project lists no journeys
+    value: ${{ steps.run.outputs.enabled }}
+  url:
+    description: preview only; the preview's base URL
+    value: ${{ steps.run.outputs.url }}
 runs:
   using: composite
   steps:
@@ -67,10 +79,13 @@ runs:
         KIT_PR_NUMBER: ${{ github.event.pull_request.number }}
         KIT_PR_AUTHOR: ${{ github.event.pull_request.user.login }}
         KIT_REPORT_STATUS: ${{ inputs.report-status }}
+        KIT_URL: ${{ inputs.url }}
+        KIT_SECRETS: ${{ inputs.secrets }}
         GITHUB_TOKEN: ${{ inputs.token }}
       run: |
         args=("$KIT_COMMAND" --config "$KIT_CONFIG")
         [ -n "$KIT_BASE" ] && args+=(--base "$KIT_BASE")
         [ -n "$KIT_HEAD" ] && args+=(--head "$KIT_HEAD")
         [ "$KIT_REPORT_STATUS" = "true" ] && args+=(--report-status)
+        [ -n "$KIT_URL" ] && args+=(--url "$KIT_URL")
         node --disable-warning=ExperimentalWarning "$GITHUB_ACTION_PATH/src/cli.ts" "${args[@]}"

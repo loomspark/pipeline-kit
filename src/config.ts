@@ -48,6 +48,10 @@ function withDefaults(c: PipelineConfig): PipelineConfig {
   const hard: Partial<PipelineConfig["hardRules"]> = c.hardRules ?? {};
   c.hardRules = { presets: hard.presets ?? [], rules: hard.rules ?? [] };
   c.secrets ??= {};
+  if (c.previews) {
+    c.previews.timeoutMinutes ??= 10;
+    c.previews.headers ??= {};
+  }
   return c;
 }
 
@@ -90,6 +94,15 @@ function checkSemantics(config: PipelineConfig, text: string, source: string): v
     } catch (e) {
       problems.push((e as Error).message);
     }
+  }
+  // Journeys need a preview to run against, and a header may only use a secret its stage
+  // is granted, so secrets.journeys stays the one place that grants access.
+  if (config.journeys?.length && (!config.previews || config.previews.source === "none")) {
+    problems.push("journeys are listed but previews is missing or none: journeys run against a preview");
+  }
+  const granted = new Set(config.secrets.journeys ?? []);
+  for (const [header, secret] of Object.entries(config.previews?.headers ?? {})) {
+    if (!granted.has(secret)) problems.push(`previews.headers.${header} uses secret ${secret}, which isn't listed under secrets.journeys`);
   }
   // The config names secrets; it must never hold one. Report line numbers only.
   const credential = PRESETS.secrets.find((r) => r.id === "secrets-credential")!;

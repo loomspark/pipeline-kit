@@ -49,7 +49,14 @@ export interface PipelineConfig {
     rules: RiskRule[];
   };
   hardRules: { presets: string[]; rules: HardRule[] };
-  previews?: { source: "deployment" | "command" | "none"; environment?: string; command?: string };
+  previews?: {
+    source: "deployment" | "command" | "none";
+    environment?: string;
+    command?: string;
+    timeoutMinutes: number;
+    /** Header name -> NAME of the secret holding its value. */
+    headers: Record<string, string>;
+  };
   journeys?: { id: string; description: string; spec?: string }[];
   testData?: { reset?: string; seed?: string };
   models?: { gatewayUrl?: string; roles?: Partial<Record<"triage" | "build" | "review" | "test", string>> };
