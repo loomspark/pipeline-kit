@@ -72,7 +72,7 @@ previews:
   timeoutMinutes: 10
   # Sent to the preview's origin only, e.g. a host's deployment-protection bypass.
   headers:
-    x-preview-bypass: PREVIEW_BYPASS_TOKEN
+    x-preview-bypass: PREVIEW_BYPASS_SECRET
 
 journeys:
   - id: sign-up
@@ -92,5 +92,5 @@ models:
 secrets:
   verify: []
   build: [MODEL_GATEWAY_KEY]
-  journeys: [PREVIEW_BYPASS_TOKEN]
+  journeys: [PREVIEW_BYPASS_SECRET]
   test: [STAGING_DB_URL]

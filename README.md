@@ -31,7 +31,10 @@ A reusable, vendor-neutral delivery pipeline for Loomspark projects. Each projec
    jobs:
      pipeline:
        uses: loomspark/pipeline-kit/.github/workflows/ci.yml@v1
-       secrets: inherit # journeys gets only those listed under secrets.journeys
+       # Only if journeys need to get through preview protection. Pass the one secret by
+       # name; never `secrets: inherit`, which would hand the kit every secret the repo has.
+       secrets:
+         PREVIEW_BYPASS_SECRET: ${{ secrets.MY_HOSTS_BYPASS_SECRET }}
    ```
 
 3. Optional: list `journeys` and set `previews` to run Playwright journeys against each PR's preview ([design](docs/design.md#journeys)).

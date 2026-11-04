@@ -47,7 +47,7 @@ export function stageSecrets(config: PipelineConfig, allSecretsJson: string | un
     else missing.push(name);
   }
   if (missing.length) {
-    throw new JourneyError(`Secrets listed under secrets.${JOURNEYS_STAGE} but not available: ${missing.join(", ")}. Add them to the repo's GitHub Actions secrets, and pass secrets to the kit's workflow (secrets: inherit).`);
+    throw new JourneyError(`Secrets listed under secrets.${JOURNEYS_STAGE} but not available: ${missing.join(", ")}. Add them to the repo's GitHub Actions secrets, and pass each one to the kit's workflow by name (secrets: PREVIEW_BYPASS_SECRET: ...).`);
   }
   return out;
 }
@@ -66,7 +66,7 @@ export function previewHeaders(config: PipelineConfig, secrets: Record<string, s
 /** Environment for the Playwright run: the job's environment minus anything secret, plus the contract. */
 export function journeyEnv(url: string, headers: Record<string, string>, secrets: Record<string, string>, base: NodeJS.ProcessEnv = process.env): NodeJS.ProcessEnv {
   const env: NodeJS.ProcessEnv = { ...base };
-  // Every secret the workflow received arrives as KIT_SECRETS; the job's token isn't needed
+  // The secrets the workflow received arrive as KIT_SECRETS; the job's token isn't needed
   // by journeys. Neither reaches the tests.
   for (const k of ["KIT_SECRETS", "GITHUB_TOKEN", "GH_TOKEN", "INPUT_TOKEN"]) delete env[k];
   return {
