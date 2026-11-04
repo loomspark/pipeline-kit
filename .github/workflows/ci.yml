@@ -10,8 +10,10 @@
 #               the config lists no journeys.
 # The caller grants: contents read, pull-requests write (review requests, the risk
 # comment), statuses write (the risk status), deployments read (finding the preview).
-# Secrets: only for journeys, and only those listed under secrets.journeys; the caller
-# passes them with `secrets: inherit`. No host or AI vendor assumed.
+# Secrets: only for journeys. The caller passes them by name, onto the secrets declared
+# below (secrets: PREVIEW_BYPASS_SECRET: ...), never `secrets: inherit`, so GitHub itself
+# keeps the project's other secrets away from the kit (ADR 0004). The kit then passes on
+# only those listed under secrets.journeys. No host or AI vendor assumed.
 name: pipeline-kit CI
 
 on:
@@ -21,6 +23,11 @@ on:
         description: Path to the project config.
         type: string
         default: .pipeline/config.yml
+    secrets:
+      # Keep in step with JOURNEY_SECRET_SLOTS in src/config.ts (a test checks).
+      PREVIEW_BYPASS_SECRET:
+        description: Optional. Header value that lets journeys through preview protection; the config's previews.headers names it.
+        required: false
     outputs:
       risk-tier:
         description: The PR's risk tier (empty for pushes).

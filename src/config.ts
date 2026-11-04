@@ -14,6 +14,13 @@ const validate = new Ajv({ allErrors: true, strict: false }).compile(schema);
 
 export class ConfigError extends Error {}
 
+/**
+ * Secrets the reusable workflow declares (on.workflow_call.secrets). Callers pass secrets
+ * by name onto these, never with `secrets: inherit`, so these are the only names journeys
+ * can receive (ADR 0004). Keep in step with .github/workflows/ci.yml; a test checks.
+ */
+export const JOURNEY_SECRET_SLOTS: readonly string[] = ["PREVIEW_BYPASS_SECRET"];
+
 export function parseConfig(text: string, source = DEFAULT_CONFIG_PATH): PipelineConfig {
   let data: unknown;
   try {
@@ -101,6 +108,9 @@ function checkSemantics(config: PipelineConfig, text: string, source: string): v
     problems.push("journeys are listed but previews is missing or none: journeys run against a preview");
   }
   const granted = new Set(config.secrets.journeys ?? []);
+  for (const name of granted) {
+    if (!JOURNEY_SECRET_SLOTS.includes(name)) problems.push(`secrets.journeys lists ${name}, which the kit's workflow doesn't declare (declared: ${JOURNEY_SECRET_SLOTS.join(", ")}). Pass the value on a declared name, or declare a new one in the kit's workflow`);
+  }
   for (const [header, secret] of Object.entries(config.previews?.headers ?? {})) {
     if (!granted.has(secret)) problems.push(`previews.headers.${header} uses secret ${secret}, which isn't listed under secrets.journeys`);
   }

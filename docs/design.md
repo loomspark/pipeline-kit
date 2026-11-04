@@ -55,7 +55,7 @@ loomspark/pipeline-kit                    project repo (e.g. loomspark/wardintel
 
 Reserved sections are validated now so projects can declare them early; nothing consumes them yet.
 
-**Secrets.** Names must be `UPPER_SNAKE_CASE`. The kit rejects a config file containing anything that matches the credential patterns, reporting the line number only. A stage's workflow receives the caller's secrets (`secrets: inherit`) and the kit passes on only the names listed for that stage, so the config is the one place that grants a stage access to a secret, and granting one is a `.pipeline/**` change, which is tier 2. In use from milestone 3 by `journeys` (ADR 0004); a header in `previews.headers` must name a secret listed under `secrets.journeys`.
+**Secrets.** Names must be `UPPER_SNAKE_CASE`. The kit rejects a config file containing anything that matches the credential patterns, reporting the line number only. The caller passes secrets to the reusable workflow by name, onto the ones it declares (`on.workflow_call.secrets`; currently `PREVIEW_BYPASS_SECRET`), never with `secrets: inherit`, so GitHub keeps every other secret away from the kit. The kit then passes on only the names listed for that stage, and the config check rejects a `secrets.journeys` name the workflow doesn't declare. So the config is the one place that grants a stage access to a secret, so the config is the one place that grants a stage access to a secret, and granting one is a `.pipeline/**` change, which is tier 2. In use from milestone 3 by `journeys` (ADR 0004); a header in `previews.headers` must name a secret listed under `secrets.journeys`.
 
 ### Globs
 
@@ -131,7 +131,7 @@ Fictional data only, as everywhere in the pipeline: journeys use the project's s
 
 Run locally from the project: `node <kit>/src/cli.ts preview --head <sha>` prints the URL (as the agent identity when `GITHUB_TOKEN` isn't set). Then run Playwright with `PIPELINE_PREVIEW_URL` set, or run against a local server.
 
-**Callers** grant `deployments: read` and pass `secrets: inherit` (see README). Without them the job can't find the preview, or can't reach a protected one, and fails.
+**Callers** grant `deployments: read` and, if the preview is protected, pass the bypass secret by name: `secrets: PREVIEW_BYPASS_SECRET: ${{ secrets.<their secret> }}` (see README), never `secrets: inherit`. Without them the job can't find the preview, or can't reach a protected one, and fails. More declared secrets can be added later, as optional, if a host needs them.
 
 ## 5. Adopting the kit
 
@@ -174,3 +174,4 @@ What Ward Intel can't prove (human-facing sign-up, invite emails, per-role permi
 | 2026-10-26 | Milestones: added 2a, a guide for people with a diagram of the pipeline (owner); milestone 6 names the unattended merge job from ADR 0003 |
 | 2026-10-26 | Milestone 2a: [`how-it-works.md`](how-it-works.md), a plain-English guide with diagrams, linked from the README |
 | 2026-11-04 | Milestone 3: `preview` and `journeys` commands, `previews.timeoutMinutes` and `previews.headers`, per-stage secrets for journeys (ADR 0004). Schema additions only; `version` stays 1 |
+| 2026-11-04 | Journeys secrets are passed by name onto the workflow's declared `PREVIEW_BYPASS_SECRET`, never `secrets: inherit`; the config check rejects undeclared `secrets.journeys` names (owner; ADR 0004). Release `v1.2.0` |
