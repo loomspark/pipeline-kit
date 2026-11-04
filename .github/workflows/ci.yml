@@ -5,8 +5,13 @@
 #   risk        changed-path tier for PRs, reported as the `pipeline-kit/risk` commit status:
 #               tier >= approval.fromTier stays failing until an approver approves. Reruns
 #               on reviews, so an approval turns it green without a new push.
+#   journeys    PRs only: waits for the preview of the PR's head commit and runs the
+#               project's Playwright journeys against it. Passes with nothing to do when
+#               the config lists no journeys.
 # The caller grants: contents read, pull-requests write (review requests, the risk
-# comment), statuses write (the risk status). No secrets. No host or AI vendor assumed.
+# comment), statuses write (the risk status), deployments read (finding the preview).
+# Secrets: only for journeys, and only those listed under secrets.journeys; the caller
+# passes them with `secrets: inherit`. No host or AI vendor assumed.
 name: pipeline-kit CI
 
 on:
@@ -107,3 +112,52 @@ jobs:
           base: ${{ github.event.pull_request.base.sha }}
           head: ${{ github.event.pull_request.head.sha }}
           report-status: "true"
+
+  journeys:
+    # Every pull_request event, labels included: the caller's concurrency cancels an
+    # in-progress run on a new event, and a cancelled check makes `agent merge` refuse
+    # until a later run passes.
+    if: github.event_name == 'pull_request'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      deployments: read
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          ref: ${{ github.event.pull_request.head.sha }}
+          persist-credentials: false
+      - id: preview
+        uses: loomspark/pipeline-kit@v1
+        with:
+          command: preview
+          config: ${{ inputs.config }}
+          head: ${{ github.event.pull_request.head.sha }}
+      - id: plan
+        if: steps.preview.outputs.enabled == 'true'
+        uses: loomspark/pipeline-kit@v1
+        with:
+          command: plan
+          config: ${{ inputs.config }}
+      - if: steps.preview.outputs.enabled == 'true'
+        uses: actions/setup-node@v5
+        with:
+          node-version-file: ${{ steps.plan.outputs.node-version-file }}
+          cache: ${{ steps.plan.outputs.cache }}
+      - name: Install
+        if: steps.preview.outputs.enabled == 'true'
+        env:
+          INSTALL: ${{ steps.plan.outputs.install }}
+        run: bash -c "$INSTALL"
+      - name: Install the Playwright browser
+        if: steps.preview.outputs.enabled == 'true'
+        run: npx --no-install playwright install --with-deps chromium
+      - name: Run journeys
+        if: steps.preview.outputs.enabled == 'true'
+        uses: loomspark/pipeline-kit@v1
+        with:
+          command: journeys
+          config: ${{ inputs.config }}
+          url: ${{ steps.preview.outputs.url }}
+          secrets: ${{ toJSON(secrets) }}
