@@ -128,7 +128,7 @@ These are known gaps, written down so they don't surprise you.
 
 - **Nothing merges unless an agent session is running.** The guarded merge runs on your machine, inside an agent session. A job on GitHub that merges green or approved PRs by itself is planned (milestone 6).
 - **GitHub Free can't make checks required on private repos** ([K4](open-questions.md)). So a red check doesn't stop *you* pressing merge, and GitHub's own auto-merge isn't available. Agents still won't merge on red.
-- **On your laptop, "agents act only as the agent" is a convention** ([K7](open-questions.md)). An agent session there could, in principle, reach your own GitHub login. Approvals don't depend on this: GitHub records who reviewed. Making it a hard wall means running agents somewhere only the agent's key exists.
+- **On your laptop, "agents act only as the agent" is a convention.** An agent session there could, in principle, reach your own GitHub login. Approvals don't depend on this: GitHub records who reviewed. Your unattended agent runs on a separate machine with only the agent's key and none of your logins, so there it's a wall. Changes to the kit itself are made from your laptop, never by that agent ([ADR 0005](adr/0005-where-agents-run.md)).
 
 ## Glossary
 

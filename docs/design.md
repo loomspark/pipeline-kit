@@ -101,7 +101,7 @@ Runs on PRs only.
 
 Outputs: `tier` (0 to 2), `approval` (`not-needed`, `approved`, `needed`, `stale`) and `approved-by`, plus a job summary listing every file with its tier and reason.
 
-**Limits today.** GitHub Free can't make checks or statuses *required* on private repos, so a failing risk status informs people and stops agents but doesn't physically block a merge (K4). On the owner's laptop, agent sessions could still reach the owner's own login (K7); the approval itself doesn't depend on that, because it's read from GitHub's record of who reviewed.
+**Limits today.** GitHub Free can't make checks or statuses *required* on private repos, so a failing risk status informs people and stops agents but doesn't physically block a merge (K4). On the owner's laptop, agent sessions can still reach the owner's own login. That's accepted because the owner watches those sessions, and the approval itself doesn't depend on it: it's read from GitHub's record of who reviewed. Unattended agents run on a separate machine that has only the agent key, and changes to the kit are made only from the laptop (ADR 0005).
 
 ### Agent identity and merging
 
@@ -177,6 +177,7 @@ What Ward Intel can't prove (human-facing sign-up, invite emails, per-role permi
 | 2026-10-26 | Guarded `agent merge` and refusal of raw agent merges (ADR 0003); the kit's own PRs approved by review |
 | 2026-10-26 | Milestones: added 2a, a guide for people with a diagram of the pipeline (owner); milestone 6 names the unattended merge job from ADR 0003 |
 | 2026-10-26 | Milestone 2a: [`how-it-works.md`](how-it-works.md), a plain-English guide with diagrams, linked from the README |
+| 2026-11-05 | Where agents run (ADR 0005, resolves K7): unattended agents run on a separate machine with only the agent key; changes to the kit are made only from the owner's laptop |
 | 2026-11-04 | Milestone 3: `preview` and `journeys` commands, `previews.timeoutMinutes` and `previews.headers`, per-stage secrets for journeys (ADR 0004). Schema additions only; `version` stays 1 |
 | 2026-11-04 | Journeys secrets are passed by name onto the workflow's declared `PREVIEW_BYPASS_SECRET`, never `secrets: inherit`; the config check rejects undeclared `secrets.journeys` names (owner; ADR 0004). Release `v1.2.0` |
 | 2026-11-05 | Ops notices: `notify.ts` (Telegram, one topic per repo, `alert` and `digest` levels, structured fields only), `pipeline-kit notify` and `notify --discover`, [`notify.md`](notify.md) (ADR 0005) |
