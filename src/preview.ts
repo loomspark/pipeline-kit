@@ -44,10 +44,13 @@ export async function checkDeployment(github: GitHub, sha: string, environment: 
     }
     return status.environment_url.replace(/\/$/, "");
   }
-  if (status.state === "failure" || status.state === "error" || status.state === "inactive") {
+  if (status.state === "failure" || status.state === "error") {
     throw new PreviewError(`The ${environment} deployment for ${sha.slice(0, 7)} reported "${status.state}": the preview didn't build.`);
   }
-  return "waiting"; // queued, pending, in_progress
+  // "inactive" isn't final: Vercel posts it ("Canceled from the Vercel Dashboard") on a
+  // deployment and then posts "success" on the same one a minute later. If nothing
+  // succeeds, the timeout still fails closed.
+  return "waiting"; // queued, pending, in_progress, inactive
 }
 
 /** Wait for the deployment status of `sha` in `environment` to report a ready URL. */

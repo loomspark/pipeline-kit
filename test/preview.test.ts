@@ -46,6 +46,34 @@ test("a failed deployment fails at once; success without a URL fails too", async
   await assert.rejects(checkDeployment(client([dep(1, "t")], { 1: [st("success", "t")] }).github, sha, "Preview"), /no preview URL/);
 });
 
+test("an inactive status means wait, not fail (Vercel posts it before success)", async () => {
+  assert.equal(await checkDeployment(client([dep(1, "t")], { 1: [st("inactive", "t")] }).github, sha, "Preview"), "waiting");
+  let n = 0;
+  const gh = fakeGitHub({
+    [`GET /repos/${repo}/deployments`]: () => [dep(1, "2026-11-05T10:03:00Z")],
+    [`GET /repos/${repo}/deployments/1/statuses`]: () =>
+      n++ < 1
+        ? [st("inactive", "2026-11-05T10:03:37Z")]
+        : [st("success", "2026-11-05T10:05:05Z", "https://ready.example.invalid"), st("inactive", "2026-11-05T10:03:37Z")],
+  });
+  let clock = 0;
+  const url = await waitForDeployment(new GitHub({ token: "t", repo, fetch: gh.fetch }), sha, "Preview", {
+    timeoutMs: 60_000,
+    intervalMs: 10_000,
+    now: () => clock,
+    sleep: async (ms) => void (clock += ms),
+  });
+  assert.equal(url, "https://ready.example.invalid");
+});
+
+test("a deployment that stays inactive fails closed at the timeout", async () => {
+  let clock = 0;
+  await assert.rejects(
+    waitForDeployment(client([dep(1, "t")], { 1: [st("inactive", "t")] }).github, sha, "Preview", { timeoutMs: 30_000, intervalMs: 10_000, now: () => clock, sleep: async (ms) => void (clock += ms) }),
+    /No ready Preview deployment/,
+  );
+});
+
 test("waiting polls until ready", async () => {
   let n = 0;
   const gh = fakeGitHub({
