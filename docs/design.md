@@ -116,7 +116,7 @@ Agents merge only with `pipeline-kit agent merge <pr>` (ADR 0003). It merges as 
 
 Runs on PRs only, as the `pipeline / journeys` check. Passes with nothing to do when the config lists no journeys.
 
-1. **Find the preview.** `preview` looks up the deployment for the PR's head commit in `previews.environment` and waits until its latest status is `success` with a URL. A `failure` or `error` status fails at once; nothing ready within `previews.timeoutMinutes` fails too. It never skips while journeys are listed.
+1. **Find the preview.** `preview` looks up the deployment for the PR's head commit in `previews.environment` and waits until its latest status is `success` with a URL. A `failure` or `error` status fails at once. `inactive` means keep waiting, because Vercel posts it on a deployment shortly before that deployment succeeds. Nothing ready within `previews.timeoutMinutes` fails too. It never skips while journeys are listed.
 2. **Install** the project (its own Node and `install`, as in verify) and Chromium (`npx playwright install --with-deps chromium`, using the project's Playwright version).
 3. **Run** `npx --no-install playwright test <specs>` in the project, in config order. A listed journey with no `spec` fails the run.
 
