@@ -133,6 +133,10 @@ Run locally from the project: `node <kit>/src/cli.ts preview --head <sha>` print
 
 **Callers** grant `deployments: read` and, if the preview is protected, pass the bypass secret by name: `secrets: PREVIEW_BYPASS_SECRET: ${{ secrets.<their secret> }}` (see README), never `secrets: inherit`. Without them the job can't find the preview, or can't reach a protected one, and fails. More declared secrets can be added later, as optional, if a host needs them.
 
+### Ops notices (ADR 0005)
+
+`src/notify.ts` sends notices to one private Telegram group with Topics, one topic per repo: `alert` (with sound, needs action today) or `digest` (silent, one daily summary). Notices are structured (fixed title, labelled facts, https links; no free-text body) so callers send counts, statuses, names and links only. It never throws and does nothing without `TELEGRAM_BOT_TOKEN` and `TELEGRAM_CHAT_ID`. Projects vendor the file (it has no imports); shell and CI use `pipeline-kit notify`, and `notify --discover` finds the IDs. Setup and rules: [`notify.md`](notify.md). First user: Ward Intel's daily collection.
+
 ## 5. Adopting the kit
 
 1. Add `.pipeline/config.yml` (start from `examples/pipeline.config.yml`). Put the config, workflows, migrations, auth, payments, personal-data code, outbound email, new third-party services, security headers, lockfiles and anything legal at tier 2.
@@ -175,3 +179,4 @@ What Ward Intel can't prove (human-facing sign-up, invite emails, per-role permi
 | 2026-10-26 | Milestone 2a: [`how-it-works.md`](how-it-works.md), a plain-English guide with diagrams, linked from the README |
 | 2026-11-04 | Milestone 3: `preview` and `journeys` commands, `previews.timeoutMinutes` and `previews.headers`, per-stage secrets for journeys (ADR 0004). Schema additions only; `version` stays 1 |
 | 2026-11-04 | Journeys secrets are passed by name onto the workflow's declared `PREVIEW_BYPASS_SECRET`, never `secrets: inherit`; the config check rejects undeclared `secrets.journeys` names (owner; ADR 0004). Release `v1.2.0` |
+| 2026-11-05 | Ops notices: `notify.ts` (Telegram, one topic per repo, `alert` and `digest` levels, structured fields only), `pipeline-kit notify` and `notify --discover`, [`notify.md`](notify.md) (ADR 0005) |
