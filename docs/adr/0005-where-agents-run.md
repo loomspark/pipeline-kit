@@ -23,5 +23,7 @@ In early use, work moved back and forth between the two: the agent machine didn'
 
 - K7 is resolved for unattended work. On the laptop, agent sessions can still reach the owner's login. That's accepted because the owner is watching those sessions, and approvals never depended on it (ADR 0002).
 - The wall in decision 1 only holds while the agent machine really has no personal login. That's part of the machine's setup, and the owner should check it again whenever the machine is changed.
-- Decision 3 is a habit unless the agent machine uses a GitHub identity that can't write to the kit. **[Proposed]** A second GitHub App for the unattended agent, installed on the project repos only, not on `pipeline-kit`. That would make decision 3 a wall too.
+- Decision 3 is enforced by GitHub, not just a habit, for Marvin's own GitHub App: `marvin-loomspark` is no longer installed on `pipeline-kit` (removed by the owner, 2026-11-05). Two things on the agent machine are still to check (task 1026, the audit of the Mini):
+  - **Which identity `~/.config/pipeline-kit/agent.json` points at.** If it holds the key of the laptop's agent app, which is installed on `pipeline-kit`, the agent machine can still push to the kit. Then point it at `marvin-loomspark` and keep the laptop's key on the laptop only.
+  - **How its kit checkout gets updated.** If it still needs updates, use a read-only deploy key on `pipeline-kit`.
 - ADR 0003 says nothing merges unless an agent session is running. On the always-on machine, that's now normally true. A GitHub-side merge job (milestone 6) is still the route to merging with no agent running.
