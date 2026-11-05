@@ -93,5 +93,5 @@ Each call mints a one-hour token scoped to that one repo and runs the command wi
 
 ## Limits
 
-- **On the owner's own laptop, this is a convention, not a wall.** An agent session there could still reach the owner's `gh` login. The approval check doesn't depend on it: GitHub records who reviewed, and only listed people's reviews count. But the agent could, in principle, act as the owner elsewhere. The wall comes from running agent sessions where only the agent's key exists (a cloud runner or a separate machine user). See open question K7.
+- **On the owner's own laptop, this is a convention, not a wall.** An agent session there could still reach the owner's `gh` login. The approval check doesn't depend on it: GitHub records who reviewed, and only listed people's reviews count. That's accepted because the owner watches laptop sessions. Unattended agents run on a separate machine where only the agent's key exists and no personal login is signed in, and changes to the kit itself are made only from the laptop ([ADR 0005](adr/0005-where-agents-run.md)).
 - **GitHub Free can't make the risk status required** on private repos (K4). Agents don't merge while it's failing; people can still press the button.
