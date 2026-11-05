@@ -11,6 +11,8 @@ import { approvalState, classify } from "./risk.ts";
 import { PreviewError, resolvePreview } from "./preview.ts";
 import { JourneyError, journeyEnv, journeySpecs, journeysSummary, previewHeaders, runJourneys, stageSecrets } from "./journeys.ts";
 import type { Review } from "./risk.ts";
+import { discoverChats, notify, notifyConfigFromEnv } from "./notify.ts";
+import type { NoticeFact, NoticeLevel, NoticeLink } from "./notify.ts";
 
 const USAGE = `pipeline-kit <command> [options]
 
@@ -26,6 +28,12 @@ Commands:
   agent git|gh <args...>   Run git or gh as the agent identity (docs/agent-identity.md)
   agent merge <pr>         Merge a PR as the agent, only if every check and status is
                            green, including pipeline-kit/risk (docs/agent-identity.md)
+  notify --level alert|digest --title <text> [--fact Label=value]... [--link Label=https://...]...
+                           Send an ops notice to Telegram (docs/notify.md). Needs
+                           TELEGRAM_BOT_TOKEN and TELEGRAM_CHAT_ID (TELEGRAM_TOPIC_ID for the
+                           repo's topic); does nothing without them. Always exits 0 once sent
+                           or skipped, so it can't fail the job that calls it.
+  notify --discover        List the groups and topics the bot has seen, with their IDs
 
 Options:
   --config <path>          Project config (default ${DEFAULT_CONFIG_PATH})
@@ -62,6 +70,7 @@ async function main(argv: string[]): Promise<number> {
     }
     return runAsAgent(tool, argv.slice(2));
   }
+  if (argv[0] === "notify") return notifyCommand(argv.slice(1));
   const { positionals, values } = parseArgs({
     args: argv,
     allowPositionals: true,
@@ -226,6 +235,65 @@ async function main(argv: string[]): Promise<number> {
       console.error(`Unknown command: ${command}\n\n${USAGE}`);
       return 2;
   }
+}
+
+function splitPair(raw: string, what: string): [string, string] {
+  const i = raw.indexOf("=");
+  if (i <= 0) throw new Error(`--${what} must be Label=value`);
+  return [raw.slice(0, i), raw.slice(i + 1)];
+}
+
+async function notifyCommand(argv: string[]): Promise<number> {
+  const { values } = parseArgs({
+    args: argv,
+    options: {
+      level: { type: "string" },
+      title: { type: "string" },
+      source: { type: "string" },
+      fact: { type: "string", multiple: true },
+      link: { type: "string", multiple: true },
+      discover: { type: "boolean" },
+    },
+  });
+  const config = notifyConfigFromEnv();
+  if (values.discover) {
+    if (!config.botToken) {
+      console.error("notify --discover needs TELEGRAM_BOT_TOKEN in the environment.");
+      return 2;
+    }
+    const chats = await discoverChats(config.botToken);
+    if (!chats.length) {
+      console.log("No groups seen yet. Send /start@<your bot> in the repo's topic, then run this again.");
+      return 0;
+    }
+    for (const c of chats) {
+      console.log(c.topicId
+        ? `TELEGRAM_CHAT_ID=${c.chatId} TELEGRAM_TOPIC_ID=${c.topicId}  (${c.chatTitle} / ${c.topicName ?? "topic"})`
+        : `TELEGRAM_CHAT_ID=${c.chatId}  (${c.chatTitle})`);
+    }
+    return 0;
+  }
+  const level = values.level as NoticeLevel;
+  if ((level !== "alert" && level !== "digest") || !values.title) {
+    console.error("Usage: pipeline-kit notify --level alert|digest --title <text> [--fact Label=value]... [--link Label=https://...]...");
+    return 2;
+  }
+  const facts: NoticeFact[] = (values.fact ?? []).map((raw) => {
+    const [label, v] = splitPair(raw, "fact");
+    return { label, value: /^-?\d+(\.\d+)?$/.test(v) ? Number(v) : v };
+  });
+  const links: NoticeLink[] = (values.link ?? []).map((raw) => {
+    const [label, url] = splitPair(raw, "link");
+    return { label, url };
+  });
+  const result = await notify({ level, title: values.title, source: values.source, facts, links }, { config });
+  if (result.sent) console.log(`notify: sent (${level})`);
+  else if (result.reason === "not-configured") console.log("notify: skipped, TELEGRAM_BOT_TOKEN or TELEGRAM_CHAT_ID not set");
+  else if (result.reason === "invalid") {
+    console.error(`notify: not sent, ${result.detail}`);
+    return 2;
+  } else console.log(`notify: not sent (${result.detail})`);
+  return 0;
 }
 
 try {

@@ -4,7 +4,7 @@
 
 A reusable, vendor-neutral delivery pipeline for Loomspark projects. Each project keeps a small config file in its own repo; the kit provides the workflows, rules engine and (later) agent prompts and test helpers.
 
-**Status:** milestone 2 (`v1`). Reusable CI with three checks: `verify` (the project's own commands), `hard-rules` (things that must never land) and `risk` (changed-path tiers; risky changes need a listed person's GitHub review, requested automatically so it reaches their phone). Milestone 3 adds `journeys`: the project's Playwright journeys run against each PR's preview. Agents act as their own GitHub App identity ([setup](docs/agent-identity.md)). First user: Ward Intel.
+**Status:** milestone 2 (`v1`). Reusable CI with three checks: `verify` (the project's own commands), `hard-rules` (things that must never land) and `risk` (changed-path tiers; risky changes need a listed person's GitHub review, requested automatically so it reaches their phone). Milestone 3 adds `journeys`: the project's Playwright journeys run against each PR's preview. Agents act as their own GitHub App identity ([setup](docs/agent-identity.md)). Jobs can send [ops notices to Telegram](docs/notify.md), one topic per repo. First user: Ward Intel.
 
 ## Adopt it
 
