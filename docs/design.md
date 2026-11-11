@@ -103,6 +103,8 @@ Outputs: `tier` (0 to 2), `approval` (`not-needed`, `approved`, `needed`, `stale
 
 **Limits today.** GitHub Free can't make checks or statuses *required* on private repos, so a failing risk status informs people and stops agents but doesn't physically block a merge (K4). On the owner's laptop, agent sessions could still reach the owner's own login (K7); the approval itself doesn't depend on that, because it's read from GitHub's record of who reviewed.
 
+**[Proposed]** For approvers who don't use GitHub, [ADR 0006](adr/0006-approvals-outside-github.md) proposes a third method, `service`: approval through a chat message or a page in the project's own admin tool, recorded by a separate approver app (milestone 7).
+
 ### Agent identity and merging
 
 How it looks to the owner, in plain English: [`how-it-works.md`](how-it-works.md). Keep it in step with this section.
@@ -165,6 +167,7 @@ Run locally from the project: `node <kit>/src/cli.ts preview --head <sha>` print
 | 4 | 1 | **[Proposed]** AI exploratory tester (layer 2) through the model gateway; outputs new Playwright tests | |
 | 5 | 3 | **[Proposed]** Intake issue form, triage, build and reviewer agents (coding agent as a swappable CLI step) | |
 | 6 | 1 and 4 | **[Proposed]** Read-only production smoke checks, tier-0 auto-ship per project, weekly digest; a GitHub-side merge job so green or approved PRs merge with no agent session running (ADR 0003) | |
+| 7 | 2 and 4 | **[Proposed]** **Approvals outside GitHub** (ADR 0006, proposed), for people who don't use GitHub, Made Impact first. An approval service acting as its own approver app; `risk.approval.method: service`. Two lanes: fast (tier 1 and the approver was involved: Approve button in the chat) and full (tier 2 or not involved: link to an approval page in the project's own admin tool, with a passkey check). An approval request record and an endpoint defined by the kit, plus a reference page. Channel adapters (WhatsApp, Telegram, email; none required). Rollback: restore the previous deploy with the project's `rollback` command, or open a revert PR. Needs milestone 6's merge job and milestone 3's screenshots; open questions K8 to K11 | |
 
 What Ward Intel can't prove (human-facing sign-up, invite emails, per-role permissions) needs extra kit work for Made Impact in milestone 3 (test inbox, synthetic personas, role journeys).
 
@@ -180,3 +183,4 @@ What Ward Intel can't prove (human-facing sign-up, invite emails, per-role permi
 | 2026-11-04 | Milestone 3: `preview` and `journeys` commands, `previews.timeoutMinutes` and `previews.headers`, per-stage secrets for journeys (ADR 0004). Schema additions only; `version` stays 1 |
 | 2026-11-04 | Journeys secrets are passed by name onto the workflow's declared `PREVIEW_BYPASS_SECRET`, never `secrets: inherit`; the config check rejects undeclared `secrets.journeys` names (owner; ADR 0004). Release `v1.2.0` |
 | 2026-11-05 | Ops notices: `notify.ts` (Telegram, one topic per repo, `alert` and `digest` levels, structured fields only), `pipeline-kit notify` and `notify --discover`, [`notify.md`](notify.md) (ADR 0005) |
+| 2026-11-11 | Proposed milestone 7, approvals outside GitHub, in fast and full lanes with rollback (ADR 0006, proposed); open questions K8 to K11. Docs only |
